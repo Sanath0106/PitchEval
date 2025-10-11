@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import dbConnect from '@/lib/mongodb'
-import Evaluation from '@/lib/models/Evaluation'
+import dbConnect from '../../../../lib/mongodb'
+import Evaluation from '../../../../lib/models/Evaluation'
 
 export async function GET(
   request: NextRequest,

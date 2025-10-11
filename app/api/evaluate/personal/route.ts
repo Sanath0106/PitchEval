@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import dbConnect from '@/lib/mongodb'
-import Evaluation from '@/lib/models/Evaluation'
-import { evaluatePresentationFile } from '@/lib/ai/gemini'
+import dbConnect from '../../../../lib/mongodb'
+import Evaluation from '../../../../lib/models/Evaluation'
+import { evaluatePresentationFile } from '../../../../lib/ai/gemini'
 
 export async function POST(request: NextRequest) {
   try {
