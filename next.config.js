@@ -1,3 +1,5 @@
+const path = require('path');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
@@ -22,9 +24,13 @@ const nextConfig = {
   webpack: (config, { dev, isServer }) => {
     config.resolve.alias.canvas = false;
     
-    // Ignore pdf-parse test files
+    // Add explicit path aliases for better resolution
     config.resolve.alias = {
       ...config.resolve.alias,
+      '@': path.resolve(__dirname),
+      '@/lib': path.resolve(__dirname, 'lib'),
+      '@/components': path.resolve(__dirname, 'components'),
+      '@/app': path.resolve(__dirname, 'app'),
       'pdf-parse/test': false,
     };
     
