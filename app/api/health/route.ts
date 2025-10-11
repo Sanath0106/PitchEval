@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { dbConnect } from '../../../lib'
+import dbConnect from '../../_lib/mongodb'
 
 export async function GET() {
   try {

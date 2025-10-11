@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { dbConnect, Evaluation, generatePDFReport } from '../../../../lib'
+import dbConnect from '../../../_lib/mongodb'
+import Evaluation from '../../../_lib/models/Evaluation'
+import { generatePDFReport } from '../../../_lib/reportGenerator'
 
 export async function GET(
   request: NextRequest,
