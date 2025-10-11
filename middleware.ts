@@ -1,21 +1,6 @@
 import { clerkMiddleware } from '@clerk/nextjs/server'
 
-export default clerkMiddleware(async (auth, req) => {
-  // Minimal middleware - let pages handle their own auth
-  const url = req.nextUrl.pathname
-  
-  // Only protect API routes that absolutely need it
-  if (url.startsWith('/api/evaluate') || 
-      url.startsWith('/api/evaluations') || 
-      url.startsWith('/api/hackathon') || 
-      url.startsWith('/api/reports')) {
-    try {
-      await auth.protect()
-    } catch {
-      // Silently fail - let the API handle auth errors
-    }
-  }
-})
+export default clerkMiddleware()
 
 export const config = {
   matcher: [
