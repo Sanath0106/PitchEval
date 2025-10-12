@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import dbConnect from '../../../_lib/mongodb'
-import Evaluation from '../../../_lib/models/Evaluation'
+import dbConnect from '../../../../lib/mongodb'
+import Evaluation from '../../../../lib/models/Evaluation'
 
 export async function GET(
   request: NextRequest,
@@ -9,17 +9,17 @@ export async function GET(
 ) {
   try {
     const { userId } = await auth()
-    
+
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { id } = await params
     await dbConnect()
-    
-    const evaluation = await Evaluation.findOne({ 
-      _id: id, 
-      userId 
+
+    const evaluation = await Evaluation.findOne({
+      _id: id,
+      userId
     })
 
     if (!evaluation) {
