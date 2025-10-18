@@ -9,6 +9,7 @@ interface EvaluationData {
   _id: string
   fileName: string
   domain: string
+  hackathonId?: string
   status: 'processing' | 'completed' | 'failed'
   scores?: {
     feasibility: number
@@ -18,6 +19,17 @@ interface EvaluationData {
     overall: number
   }
   suggestions?: string[]
+  templateValidation?: {
+    themeMatch: {
+      score: number
+      reasoning: string
+    }
+    structureAdherence: {
+      score: number
+      deviations: string[]
+    }
+    overallCompliance: number
+  }
   createdAt: string
 }
 

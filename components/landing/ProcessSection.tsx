@@ -1,22 +1,25 @@
 export default function ProcessSection() {
   return (
     <section id="process" className="py-32 px-4 relative">
-      <div className="container mx-auto max-w-7xl">
+      {/* Dot Grid Background */}
+      <div className="absolute inset-0 dot-grid"></div>
+      
+      <div className="container mx-auto max-w-7xl relative z-10">
         {/* Section Header */}
         <div className="text-center mb-20">
           <div className="inline-flex items-center px-4 py-2 rounded-full bg-orange-500/10 border border-orange-500/20 mb-8 card-glow">
-            <div className="w-3 h-3 bg-orange-500 rounded-full mr-2 animate-pulse"></div>
+            <div className="w-3 h-3 bg-orange-500 rounded-full mr-2"></div>
             <span className="text-orange-400 text-sm font-medium">Our Process</span>
           </div>
           <h2 className="text-4xl md:text-5xl font-bold mb-6 leading-tight">
-            From Trash to
+            Perfect Your Pitch
             <br />
             <span className="bg-gradient-to-r from-orange-500 via-red-500 to-orange-600 bg-clip-text text-transparent">
-              Treasure in 3 Steps
+              In 3 Simple Steps
             </span>
           </h2>
           <p className="text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed">
-            Turn your mediocre pitch into something judges actually want to hear.
+            Get professional-grade feedback and actionable insights to elevate your presentation.
           </p>
         </div>
 
@@ -31,15 +34,15 @@ export default function ProcessSection() {
             </div>
             
             <h3 className="text-2xl font-bold mb-6 text-white group-hover:text-orange-100 transition-colors">
-              Upload Your Presentation
+              Submit Your Pitch
             </h3>
             
             <p className="text-gray-400 group-hover:text-gray-300 leading-relaxed mb-8 transition-colors">
-              Upload your presentation file and
+              Upload your presentation deck (PDF format)
               <br />
-              select your project domain.
+              and specify your project category.
               <br />
-              That's it - we handle the rest.
+              Our system handles the technical processing.
             </p>
           </div>
 
@@ -52,15 +55,15 @@ export default function ProcessSection() {
             </div>
             
             <h3 className="text-2xl font-bold mb-6 text-white group-hover:text-blue-100 transition-colors">
-              AI Analysis & Scoring
+              Comprehensive Analysis
             </h3>
             
             <p className="text-gray-400 group-hover:text-gray-300 leading-relaxed mb-8 transition-colors">
-              Our AI analyzes your content and
+              Advanced AI evaluates your pitch across
               <br />
-              scores feasibility, innovation, impact,
+              four key dimensions: feasibility, innovation,
               <br />
-              and clarity in under 2 minutes.
+              market impact, and presentation clarity.
             </p>
           </div>
 
@@ -73,15 +76,15 @@ export default function ProcessSection() {
             </div>
             
             <h3 className="text-2xl font-bold mb-6 text-white group-hover:text-green-100 transition-colors">
-              Get Results & Improve
+              Actionable Insights
             </h3>
             
             <p className="text-gray-400 group-hover:text-gray-300 leading-relaxed mb-8 transition-colors">
-              Get detailed scores, 5 improvement
+              Receive detailed scoring breakdown,
               <br />
-              suggestions, and a downloadable
+              targeted improvement recommendations,
               <br />
-              PDF report to perfect your pitch.
+              and a comprehensive evaluation report.
             </p>
           </div>
         </div>

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import '@/lib/console-filter'
+import '@/lib/startup' // Initialize services on app start
 import './globals.css'
 
 export const metadata: Metadata = {

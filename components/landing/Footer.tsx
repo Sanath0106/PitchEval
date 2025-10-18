@@ -2,8 +2,11 @@ import Logo from '@/components/ui/Logo'
 
 export default function Footer() {
   return (
-    <footer className="py-16 px-4 border-t border-gray-800/50 bg-black/50">
-      <div className="container mx-auto max-w-7xl">
+    <footer className="py-16 px-4 border-t border-gray-800/50 bg-black/50 relative">
+      {/* Dot Grid Background */}
+      <div className="absolute inset-0 dot-grid opacity-50"></div>
+      
+      <div className="container mx-auto max-w-7xl relative z-10">
         <div className="flex flex-col md:flex-row items-center justify-between">
           {/* Logo */}
           <Logo className="flex items-center space-x-3 mb-6 md:mb-0" />

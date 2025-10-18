@@ -46,6 +46,7 @@ export async function GET(
         scores: evaluation.scores,
         suggestions: evaluation.suggestions,
         trackRelevance: evaluation.trackRelevance,
+        templateValidation: evaluation.templateValidation,
         rank: evaluation.rank,
         createdAt: evaluation.createdAt.toISOString()
       })),

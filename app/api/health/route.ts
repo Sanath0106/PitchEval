@@ -1,22 +1,56 @@
 import { NextResponse } from 'next/server'
-import dbConnect from '../../../lib/mongodb'
+import { initializeServices } from '../../../lib/startup'
+import { queueWorker } from '../../../lib/workers/queueWorker'
 
 export async function GET() {
   try {
-    await dbConnect()
-    
-    return NextResponse.json({ 
+    // Ensure services are initialized
+    await initializeServices()
+
+    // Check queue worker status
+    const isWorkerRunning = queueWorker.isWorkerRunning()
+
+    return NextResponse.json({
+      success: true,
       status: 'healthy',
-      timestamp: new Date().toISOString(),
       services: {
-        database: 'connected',
-        api: 'running'
-      }
+        queueWorker: {
+          running: isWorkerRunning,
+          enabled: process.env.START_QUEUE_WORKER === 'true' || process.env.NODE_ENV === 'production'
+        }
+      },
+      timestamp: new Date().toISOString()
     })
+
   } catch (error) {
-    return NextResponse.json({ 
-      status: 'error',
-      error: 'Database connection failed'
+    console.error('Health check failed:', error)
+    return NextResponse.json({
+      success: false,
+      status: 'unhealthy',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    }, { status: 500 })
+  }
+}
+
+export async function POST() {
+  try {
+    console.log('🔄 Manual service initialization requested...')
+    
+    // Force re-initialization
+    await initializeServices()
+    
+    return NextResponse.json({
+      success: true,
+      message: 'Services initialized successfully',
+      queueWorkerRunning: queueWorker.isWorkerRunning()
+    })
+
+  } catch (error) {
+    console.error('Manual initialization failed:', error)
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 })
   }
 }

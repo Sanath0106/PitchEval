@@ -30,9 +30,11 @@ export async function GET(
       _id: evaluation._id.toString(),
       fileName: evaluation.fileName,
       domain: evaluation.domain,
+      hackathonId: evaluation.hackathonId,
       status: evaluation.status,
       scores: evaluation.scores,
       suggestions: evaluation.suggestions,
+      templateValidation: evaluation.templateValidation,
       createdAt: evaluation.createdAt.toISOString()
     })
 

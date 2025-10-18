@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import dbConnect from '../../../../lib/mongodb'
 import Evaluation from '../../../../lib/models/Evaluation'
-import { evaluatePresentationFile } from '../../../../lib/ai/gemini'
+import { addToQueue, QUEUES, PersonalEvaluationJob } from '../../../../lib/queue'
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,8 +19,23 @@ export async function POST(request: NextRequest) {
     const domain = formData.get('domain') as string
     const description = formData.get('description') as string
 
-    if (!file || !domain) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+
+    if (!file) {
+      return NextResponse.json({ error: 'File is required' }, { status: 400 })
+    }
+    
+    if (!domain) {
+      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
+    }
+    
+    // Validate file type
+    if (file.type !== 'application/pdf') {
+      return NextResponse.json({ error: 'Only PDF files are supported' }, { status: 400 })
+    }
+    
+    // Validate file size (10MB limit)
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: 'File size must be less than 10MB' }, { status: 400 })
     }
 
     // Create evaluation record
@@ -30,44 +45,59 @@ export async function POST(request: NextRequest) {
       fileName: file.name,
       domain,
       description,
-      status: 'processing',
+      status: 'queued', // Changed from 'processing' to 'queued'
     })
 
     await evaluation.save()
 
-    // Process file directly with Gemini in background
-    processFileWithGemini(evaluation._id.toString(), file, domain, description)
-
-    return NextResponse.json({ 
+    // Convert file to buffer for queue
+    const fileBuffer = Buffer.from(await file.arrayBuffer())
+    
+    // Add job to queue instead of direct processing
+    const job: PersonalEvaluationJob = {
+      type: 'personal',
       evaluationId: evaluation._id.toString(),
-      message: 'File uploaded successfully. Processing...' 
-    })
+      userId,
+      fileName: file.name,
+      fileBuffer: fileBuffer.toString('base64'),
+      domain,
+      description
+    }
+
+    try {
+      await addToQueue(QUEUES.PERSONAL_EVALUATION, job, 8) // High priority for personal uploads
+
+      return NextResponse.json({ 
+        evaluationId: evaluation._id.toString(),
+        message: 'File uploaded successfully. Added to processing queue...',
+        status: 'queued'
+      })
+    } catch (queueError) {
+      console.log('Queue not available, processing directly:', queueError)
+      
+      // Fallback: Process directly without queue
+      const { processPersonalEvaluation } = await import('../../../../lib/processors/evaluationProcessor')
+      
+      // Process in background (don't await)
+      processPersonalEvaluation(job).catch(error => {
+        console.error('Direct processing failed:', error)
+      })
+
+      return NextResponse.json({ 
+        evaluationId: evaluation._id.toString(),
+        message: 'File uploaded successfully. Processing started...',
+        status: 'processing'
+      })
+    }
 
   } catch (error) {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Personal evaluation error:', error)
+    return NextResponse.json({ 
+      error: 'Internal server error', 
+      details: error instanceof Error ? error.message : 'Unknown error' 
+    }, { status: 500 })
   }
 }
 
-async function processFileWithGemini(evaluationId: string, file: File, domain: string, description?: string) {
-  try {
-    await dbConnect()
-    
-    // Let Gemini 2.0 Flash handle BOTH file reading AND analysis
-    const aiResult = await evaluatePresentationFile(file, domain, description)
-    
-    // Update evaluation with results
-    const updatedEvaluation = await Evaluation.findByIdAndUpdate(evaluationId, {
-      scores: aiResult.scores,
-      suggestions: aiResult.suggestions,
-      status: 'completed',
-      updatedAt: new Date(),
-    }, { new: true })
-
-  } catch (error) {
-    // Update evaluation with error status
-    await Evaluation.findByIdAndUpdate(evaluationId, {
-      status: 'failed',
-      updatedAt: new Date(),
-    })
-  }
-}
+// Note: File processing is now handled by the queue worker
+// See lib/processors/evaluationProcessor.ts for the actual processing logic

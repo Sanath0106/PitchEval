@@ -60,10 +60,33 @@ const EvaluationSchema = new mongoose.Schema({
     },
     reason: String,
   },
+  templateValidation: {
+    themeMatch: {
+      score: {
+        type: Number,
+        min: 0,
+        max: 10,
+      },
+      reasoning: String,
+    },
+    structureAdherence: {
+      score: {
+        type: Number,
+        min: 0,
+        max: 10,
+      },
+      deviations: [String],
+    },
+    overallCompliance: {
+      type: Number,
+      min: 0,
+      max: 10,
+    },
+  },
   status: {
     type: String,
-    enum: ['processing', 'completed', 'failed'],
-    default: 'processing',
+    enum: ['queued', 'processing', 'completed', 'failed'],
+    default: 'queued',
   },
   hackathonId: String,
   rank: Number,

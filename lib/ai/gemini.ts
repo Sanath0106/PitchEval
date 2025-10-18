@@ -105,13 +105,13 @@ export async function evaluatePresentationFile(file: File, domain: string, descr
 
     const evaluationResult: EvaluationResult = {
       scores: {
-        feasibility: Math.min(10, Math.max(1, scores.feasibility)),
-        innovation: Math.min(10, Math.max(1, scores.innovation)),
-        impact: Math.min(10, Math.max(1, scores.impact)),
-        clarity: Math.min(10, Math.max(1, scores.clarity)),
+        feasibility: Math.min(10, Math.max(0, scores.feasibility)), // Allow 0 for invalid files
+        innovation: Math.min(10, Math.max(0, scores.innovation)),
+        impact: Math.min(10, Math.max(0, scores.impact)),
+        clarity: Math.min(10, Math.max(0, scores.clarity)),
         overall: Math.round(overall * 10) / 10, // Round to 1 decimal
       },
-      suggestions: evaluation.suggestions.slice(0, 7),
+      suggestions: evaluation.suggestions, // AI should handle suggestion count based on file validity
     }
 
     // Add track relevance if tracks were provided
@@ -161,9 +161,46 @@ async function extractTextFromFile(file: File): Promise<string> {
 // Helper function to get file-based analysis prompt
 function getAnalysisPrompt(fileName: string, domain: string, description?: string, tracks?: string[]): string {
   return `
+    🚨🚨🚨 STOP! BEFORE ANYTHING ELSE: 
+    
+    If you see GRADES, MARKS, SEMESTER, TRANSCRIPT, RESUME, CV, EDUCATION, WORK EXPERIENCE, SKILLS, CERTIFICATES, ID CARD, or PERSONAL INFO - IMMEDIATELY return this JSON and DO NOT CONTINUE:
+    
+    {"scores":{"feasibility":0,"innovation":0,"impact":0,"clarity":0,"overall":0},"suggestions":["INVALID FILE: This is a personal/academic document, not a project pitch. Upload a PROJECT PRESENTATION instead."]}
+
     You are a STRICT, UNBIASED pitch evaluation expert with 20+ years of experience in venture capital, startup acceleration, and hackathon judging. You have NO emotional attachment and provide brutally honest, data-driven feedback.
 
-    TASK: Analyze this ${fileName} presentation file and provide a comprehensive evaluation.
+    ⚠️ CRITICAL INSTRUCTION: If this is NOT a project pitch presentation (e.g., resume, ID, certificate, manual), return EXACTLY this JSON with ONLY 1 suggestion and STOP:
+    {"scores":{"feasibility":0,"innovation":0,"impact":0,"clarity":0,"overall":0},"suggestions":["INVALID FILE TYPE: This appears to be [document type] rather than a project pitch presentation. Please upload a presentation that introduces a project, startup idea, or product proposal with: problem statement, solution overview, market analysis, business model, and implementation plan."]}
+
+    CRITICAL FILE TYPE VALIDATION (CHECK THIS FIRST):
+    
+    BEFORE EVALUATING ANYTHING, determine if this is a PROJECT PITCH PRESENTATION:
+    
+    IMMEDIATELY DISQUALIFY if the file contains:
+    - Personal resume/CV content
+    - Job application materials
+    - Academic transcripts or certificates
+    - Company brochures or marketing materials
+    - Technical documentation or manuals
+    - Research papers without implementation
+    - Generic business documents
+    - Personal portfolios (unless it's a pitch for a specific project)
+    - Any content that is NOT a project/startup/product pitch
+    
+    ONLY PROCEED if the file is clearly:
+    - A project pitch presentation
+    - A startup business plan presentation
+    - A product/service proposal
+    - A hackathon project submission
+    - A technology solution presentation
+    
+    If this is NOT a project pitch presentation, IMMEDIATELY return this exact JSON structure and STOP:
+    {
+      "scores": { "feasibility": 0, "innovation": 0, "impact": 0, "clarity": 0, "overall": 0 },
+      "suggestions": ["INVALID FILE TYPE: This appears to be [type of document] rather than a project pitch presentation. Please upload a presentation that introduces a project, startup idea, or product proposal with: problem statement, solution overview, market analysis, business model, and implementation plan."]
+    }
+
+    TASK: Analyze this ${fileName} presentation file and provide a comprehensive evaluation ONLY if it passes the file type validation above.
 
     CONTEXT:
     - Domain: ${domain}
@@ -171,15 +208,15 @@ function getAnalysisPrompt(fileName: string, domain: string, description?: strin
     ${tracks && tracks.length > 0 ? `- Hackathon Tracks: ${tracks.join(', ')}` : ''}
 
     ${tracks && tracks.length > 0 ? `
-    🚨 MANDATORY TRACK RELEVANCE CHECK (EVALUATE THIS FIRST):
+    MANDATORY TRACK RELEVANCE CHECK (EVALUATE THIS FIRST):
     
     ALLOWED HACKATHON TRACKS: ${tracks.join(', ')}
     
-    ⚠️ DISQUALIFICATION RULES (BE RUTHLESS):
-    1. If the presentation's MAIN TOPIC is not directly related to ANY track → DISQUALIFY (isRelevant: false)
-    2. If it's a generic business idea without track-specific technology → DISQUALIFY
-    3. If it's about a completely different domain → DISQUALIFY
-    4. If you can't clearly identify which track it belongs to → DISQUALIFY
+    DISQUALIFICATION RULES (BE RUTHLESS):
+    1. If the presentation's MAIN TOPIC is not directly related to ANY track - DISQUALIFY (isRelevant: false)
+    2. If it's a generic business idea without track-specific technology - DISQUALIFY
+    3. If it's about a completely different domain - DISQUALIFY
+    4. If you can't clearly identify which track it belongs to - DISQUALIFY
     5. DEFAULT TO DISQUALIFICATION - only allow if 100% certain it fits a track
     
     TRACK MATCHING EXAMPLES:
@@ -188,16 +225,16 @@ function getAnalysisPrompt(fileName: string, domain: string, description?: strin
     - "Healthcare" track: Must solve healthcare problems, medical technology, etc.
     - "Fintech" track: Must be financial technology, payments, banking, etc.
     
-    ❌ AUTOMATIC DISQUALIFICATION EXAMPLES:
-    - LTI document when tracks are "AI/ML, Blockchain" → DISQUALIFY
-    - Food delivery app when tracks are "Healthcare, Education" → DISQUALIFY  
-    - Generic business plan when tracks are "IoT, Cybersecurity" → DISQUALIFY
-    - Random PDF document unrelated to any track → DISQUALIFY
-    - Academic papers/research without implementation → DISQUALIFY
-    - Company documentation/manuals → DISQUALIFY
-    - Generic presentations without track-specific technology → DISQUALIFY
+    AUTOMATIC DISQUALIFICATION EXAMPLES:
+    - LTI document when tracks are "AI/ML, Blockchain" - DISQUALIFY
+    - Food delivery app when tracks are "Healthcare, Education" - DISQUALIFY  
+    - Generic business plan when tracks are "IoT, Cybersecurity" - DISQUALIFY
+    - Random PDF document unrelated to any track - DISQUALIFY
+    - Academic papers/research without implementation - DISQUALIFY
+    - Company documentation/manuals - DISQUALIFY
+    - Generic presentations without track-specific technology - DISQUALIFY
     
-    🔍 STRICT VALIDATION KEYWORDS (Auto-disqualify if found without track relevance):
+    STRICT VALIDATION KEYWORDS (Auto-disqualify if found without track relevance):
     - "LTI", "Learning Tools Interoperability" (unless Education track exists)
     - "Annual Report", "Financial Statement" (unless Fintech track exists)
     - "User Manual", "Documentation", "Guide" (unless specific tech track matches)
@@ -256,9 +293,46 @@ function getAnalysisPrompt(fileName: string, domain: string, description?: strin
 // Helper function to get text-based analysis prompt
 function getTextAnalysisPrompt(text: string, fileName: string, domain: string, description?: string, tracks?: string[]): string {
   return `
+    🚨🚨🚨 STOP! BEFORE ANYTHING ELSE: 
+    
+    If you see GRADES, MARKS, SEMESTER, TRANSCRIPT, RESUME, CV, EDUCATION, WORK EXPERIENCE, SKILLS, CERTIFICATES, ID CARD, or PERSONAL INFO - IMMEDIATELY return this JSON and DO NOT CONTINUE:
+    
+    {"scores":{"feasibility":0,"innovation":0,"impact":0,"clarity":0,"overall":0},"suggestions":["INVALID FILE: This is a personal/academic document, not a project pitch. Upload a PROJECT PRESENTATION instead."]}
+
     You are a STRICT, UNBIASED pitch evaluation expert with 20+ years of experience in venture capital, startup acceleration, and hackathon judging. You have NO emotional attachment and provide brutally honest, data-driven feedback.
 
-    TASK: Analyze this presentation content from ${fileName} and provide a comprehensive evaluation.
+    ⚠️ CRITICAL INSTRUCTION: If this is NOT a project pitch presentation (e.g., resume, ID, certificate, manual), return EXACTLY this JSON with ONLY 1 suggestion and STOP:
+    {"scores":{"feasibility":0,"innovation":0,"impact":0,"clarity":0,"overall":0},"suggestions":["INVALID FILE TYPE: This appears to be [document type] rather than a project pitch presentation. Please upload a presentation that introduces a project, startup idea, or product proposal with: problem statement, solution overview, market analysis, business model, and implementation plan."]}
+
+    CRITICAL FILE TYPE VALIDATION (CHECK THIS FIRST):
+    
+    BEFORE EVALUATING ANYTHING, determine if this is a PROJECT PITCH PRESENTATION:
+    
+    IMMEDIATELY DISQUALIFY if the content contains:
+    - Personal resume/CV content (work experience, education, skills, personal achievements)
+    - Job application materials or cover letters
+    - Academic transcripts, certificates, or degree information
+    - Company brochures or marketing materials
+    - Technical documentation or user manuals
+    - Research papers without implementation or product
+    - Generic business documents or reports
+    - Personal portfolios (unless it's a pitch for a specific project)
+    - Any content that is NOT a project/startup/product pitch
+    
+    ONLY PROCEED if the content is clearly:
+    - A project pitch presentation
+    - A startup business plan presentation
+    - A product/service proposal
+    - A hackathon project submission
+    - A technology solution presentation
+    
+    If this is NOT a project pitch presentation, IMMEDIATELY return this exact JSON structure and STOP:
+    {
+      "scores": { "feasibility": 0, "innovation": 0, "impact": 0, "clarity": 0, "overall": 0 },
+      "suggestions": ["INVALID FILE TYPE: This appears to be [type of document] rather than a project pitch presentation. Please upload a presentation that introduces a project, startup idea, or product proposal with: problem statement, solution overview, market analysis, business model, and implementation plan."]
+    }
+
+    TASK: Analyze this presentation content from ${fileName} and provide a comprehensive evaluation ONLY if it passes the file type validation above.
 
     PRESENTATION CONTENT:
     ${text}
@@ -269,15 +343,15 @@ function getTextAnalysisPrompt(text: string, fileName: string, domain: string, d
     ${tracks && tracks.length > 0 ? `- Hackathon Tracks: ${tracks.join(', ')}` : ''}
 
     ${tracks && tracks.length > 0 ? `
-    🚨 MANDATORY TRACK RELEVANCE CHECK (EVALUATE THIS FIRST):
+    MANDATORY TRACK RELEVANCE CHECK (EVALUATE THIS FIRST):
     
     ALLOWED HACKATHON TRACKS: ${tracks.join(', ')}
     
-    ⚠️ DISQUALIFICATION RULES (BE RUTHLESS):
-    1. If the presentation's MAIN TOPIC is not directly related to ANY track → DISQUALIFY (isRelevant: false)
-    2. If it's a generic business idea without track-specific technology → DISQUALIFY
-    3. If it's about a completely different domain → DISQUALIFY
-    4. If you can't clearly identify which track it belongs to → DISQUALIFY
+    DISQUALIFICATION RULES (BE RUTHLESS):
+    1. If the presentation's MAIN TOPIC is not directly related to ANY track - DISQUALIFY (isRelevant: false)
+    2. If it's a generic business idea without track-specific technology - DISQUALIFY
+    3. If it's about a completely different domain - DISQUALIFY
+    4. If you can't clearly identify which track it belongs to - DISQUALIFY
     5. DEFAULT TO DISQUALIFICATION - only allow if 100% certain it fits a track
     
     TRACK MATCHING EXAMPLES:
@@ -286,9 +360,9 @@ function getTextAnalysisPrompt(text: string, fileName: string, domain: string, d
     - "Healthcare" track: Must solve healthcare problems, medical technology, etc.
     - "Fintech" track: Must be financial technology, payments, banking, etc.
     
-    ❌ AUTOMATIC DISQUALIFICATION EXAMPLES:
-    - LTI document when tracks are "AI/ML, Blockchain" → DISQUALIFY
-    - Food delivery app when tracks are "Healthcare, Education" → DISQUALIFY  
+    AUTOMATIC DISQUALIFICATION EXAMPLES:
+    - LTI document when tracks are "AI/ML, Blockchain" - DISQUALIFY
+    - Food delivery app when tracks are "Healthcare, Education" - DISQUALIFY  
     - Generic business plan when tracks are "IoT, Cybersecurity" → DISQUALIFY
     - Random PDF document unrelated to any track → DISQUALIFY
     - Academic papers/research without implementation → DISQUALIFY
@@ -351,9 +425,35 @@ function getTextAnalysisPrompt(text: string, fileName: string, domain: string, d
   `
 }
 
-
 // Intelligent fallback evaluation based on domain and file type
 function getFallbackEvaluation(fileName: string, domain: string, description?: string): EvaluationResult {
+  // Check if this looks like an invalid file type
+  const invalidFilePatterns = [
+    /resume|cv|curriculum/i,
+    /transcript|certificate|diploma/i,
+    /id|identity|passport|aadhar|aadhaar/i,
+    /invoice|receipt|bill/i,
+    /manual|documentation|guide/i
+  ]
+  
+  const isInvalidFile = invalidFilePatterns.some(pattern => 
+    pattern.test(fileName) || pattern.test(description || '')
+  )
+  
+  if (isInvalidFile) {
+    return {
+      scores: {
+        feasibility: 0,
+        innovation: 0,
+        impact: 0,
+        clarity: 0,
+        overall: 0
+      },
+      suggestions: [
+        "INVALID FILE TYPE: This appears to be a personal document rather than a project pitch presentation. Please upload a presentation that introduces a project, startup idea, or product proposal with: problem statement, solution overview, market analysis, business model, and implementation plan."
+      ]
+    }
+  }
   const domainScores: Record<string, any> = {
     'cybersecurity': { feasibility: 7.0, innovation: 6.5, impact: 8.0, clarity: 6.0 },
     'ai-ml': { feasibility: 6.5, innovation: 8.5, impact: 8.5, clarity: 6.5 },

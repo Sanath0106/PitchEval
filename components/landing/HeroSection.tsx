@@ -4,6 +4,9 @@ import { SignInButton } from '@clerk/nextjs'
 export default function HeroSection() {
   return (
     <section className="relative min-h-screen flex items-center justify-center px-4 overflow-hidden pt-24">
+      {/* Grid Background */}
+      <div className="absolute inset-0 grid-background"></div>
+      
       {/* Enhanced floating elements */}
       <div className="absolute top-20 right-20 w-32 h-32 bg-orange-500/15 rounded-full blur-xl animate-float-slow"></div>
       <div className="absolute bottom-32 left-16 w-24 h-24 bg-blue-500/20 rounded-full blur-lg animate-float-delayed"></div>
@@ -21,7 +24,7 @@ export default function HeroSection() {
         <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
           No Bias. No Politics.
           <br />
-          <span className="bg-gradient-to-r from-orange-500 via-red-500 to-orange-600 bg-clip-text text-transparent animate-pulse">
+          <span className="bg-gradient-to-r from-orange-500 via-red-500 to-orange-600 bg-clip-text text-transparent">
             Just Brutal Honesty.
           </span>
         </h1>
@@ -62,24 +65,24 @@ export default function HeroSection() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-gray-800/60 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 hover:border-orange-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/10 card-glow">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="text-gray-400 text-sm">Evaluations</div>
+                    <div className="text-gray-400 text-sm">Features</div>
                     <div className="w-12 h-12 bg-gradient-to-br from-orange-500/30 to-orange-600/20 rounded-xl flex items-center justify-center">
                       <div className="w-6 h-6 bg-orange-500 rounded-full animate-pulse"></div>
                     </div>
                   </div>
-                  <div className="text-3xl font-bold bg-gradient-to-r from-white to-orange-100 bg-clip-text text-transparent mb-1">1,200+</div>
-                  <div className="text-orange-500 text-sm font-medium">↗ presentations analyzed</div>
+                  <div className="text-3xl font-bold bg-gradient-to-r from-white to-orange-100 bg-clip-text text-transparent mb-1">Beta</div>
+                  <div className="text-orange-500 text-sm font-medium">↗ early access available</div>
                 </div>
                 
                 <div className="bg-gray-800/60 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 hover:border-blue-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/10 card-glow">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="text-gray-400 text-sm">Accuracy</div>
+                    <div className="text-gray-400 text-sm">Criteria</div>
                     <div className="w-12 h-12 bg-gradient-to-br from-blue-500/30 to-blue-600/20 rounded-xl flex items-center justify-center">
                       <div className="w-6 h-6 bg-blue-500 rounded-full animate-pulse" style={{animationDelay: '0.5s'}}></div>
                     </div>
                   </div>
-                  <div className="text-3xl font-bold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent mb-1">95%</div>
-                  <div className="text-blue-500 text-sm font-medium">↗ evaluation accuracy</div>
+                  <div className="text-3xl font-bold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent mb-1">4</div>
+                  <div className="text-blue-500 text-sm font-medium">↗ evaluation dimensions</div>
                 </div>
                 
                 <div className="bg-gray-800/60 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 hover:border-green-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/10 card-glow">
@@ -89,8 +92,8 @@ export default function HeroSection() {
                       <div className="w-6 h-6 bg-green-500 rounded-full animate-pulse" style={{animationDelay: '1s'}}></div>
                     </div>
                   </div>
-                  <div className="text-3xl font-bold bg-gradient-to-r from-white to-green-100 bg-clip-text text-transparent mb-1">80%</div>
-                  <div className="text-green-500 text-sm font-medium">↗ faster than manual review</div>
+                  <div className="text-3xl font-bold bg-gradient-to-r from-white to-green-100 bg-clip-text text-transparent mb-1">2min</div>
+                  <div className="text-green-500 text-sm font-medium">↗ average analysis time</div>
                 </div>
               </div>
             </div>

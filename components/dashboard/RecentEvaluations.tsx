@@ -3,7 +3,22 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { FileText, Clock, CheckCircle, XCircle, Eye } from 'lucide-react'
+import { 
+  FileText, 
+  Clock, 
+  CheckCircle, 
+  XCircle, 
+  Eye, 
+  Trophy, 
+  Laptop, 
+  Heart, 
+  DollarSign, 
+  GraduationCap, 
+  Leaf, 
+  Users, 
+  Rocket,
+  Trash2
+} from 'lucide-react'
 import Link from 'next/link'
 import SimpleLoader from '@/components/ui/SimpleLoader'
 
@@ -71,17 +86,22 @@ export default function RecentEvaluations() {
     }
   }
 
-  const getDomainIcon = (domain: string, type?: string) => {
-    if (type === 'hackathon') return '🏆'
+  const getDomainIcon = (domain: string, type?: string, evaluation?: Evaluation) => {
+    // Show trash icon for discarded files (0.0 score)
+    if (evaluation?.status === 'completed' && evaluation?.scores?.overall === 0) {
+      return <Trash2 className="w-6 h-6 text-red-500" />
+    }
+    
+    if (type === 'hackathon') return <Trophy className="w-6 h-6 text-yellow-500" />
     
     const domainLower = domain.toLowerCase()
-    if (domainLower.includes('tech') || domainLower.includes('software')) return '💻'
-    if (domainLower.includes('health') || domainLower.includes('medical')) return '🏥'
-    if (domainLower.includes('finance') || domainLower.includes('fintech')) return '💰'
-    if (domainLower.includes('education') || domainLower.includes('learning')) return '📚'
-    if (domainLower.includes('environment') || domainLower.includes('green')) return '🌱'
-    if (domainLower.includes('social') || domainLower.includes('community')) return '👥'
-    return '🚀'
+    if (domainLower.includes('tech') || domainLower.includes('software')) return <Laptop className="w-6 h-6 text-blue-500" />
+    if (domainLower.includes('health') || domainLower.includes('medical')) return <Heart className="w-6 h-6 text-red-500" />
+    if (domainLower.includes('finance') || domainLower.includes('fintech')) return <DollarSign className="w-6 h-6 text-green-500" />
+    if (domainLower.includes('education') || domainLower.includes('learning')) return <GraduationCap className="w-6 h-6 text-purple-500" />
+    if (domainLower.includes('environment') || domainLower.includes('green')) return <Leaf className="w-6 h-6 text-green-600" />
+    if (domainLower.includes('social') || domainLower.includes('community')) return <Users className="w-6 h-6 text-indigo-500" />
+    return <Rocket className="w-6 h-6 text-orange-500" />
   }
 
   const getDisplayName = (evaluation: Evaluation) => {
@@ -146,8 +166,8 @@ export default function RecentEvaluations() {
               className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-800/60 backdrop-blur-sm rounded-lg border border-gray-700/50 hover:border-orange-500/50 hover:bg-gray-700/60 transition-all duration-300 group space-y-3 sm:space-y-0"
             >
               <div className="flex items-center space-x-4 min-w-0 flex-1">
-                <div className="text-2xl flex-shrink-0">
-                  {getDomainIcon(evaluation.domain, evaluation.type)}
+                <div className="flex-shrink-0">
+                  {getDomainIcon(evaluation.domain, evaluation.type, evaluation)}
                 </div>
                 <div className="min-w-0 flex-1">
                   <h4 className="font-medium text-white truncate">
@@ -164,21 +184,30 @@ export default function RecentEvaluations() {
               <div className="flex items-center justify-between sm:justify-end space-x-3 sm:space-x-4 flex-shrink-0">
                 {evaluation.status === 'completed' && evaluation.scores && evaluation.type === 'personal' && (
                   <div className="text-right">
-                    <div className="text-lg font-semibold text-orange-500">
+                    <div className={`text-lg font-semibold ${
+                      evaluation.scores.overall === 0 ? 'text-red-500' : 'text-orange-500'
+                    }`}>
                       {evaluation.scores.overall.toFixed(1)}/10
                     </div>
-                    <div className="text-xs text-gray-400">Overall Score</div>
+                    <div className="text-xs text-gray-400">
+                      {evaluation.scores.overall === 0 ? 'Discarded' : 'Overall Score'}
+                    </div>
                   </div>
                 )}
 
                 <div className="flex items-center space-x-2">
                   {getStatusIcon(evaluation.status)}
                   <span className="text-sm text-gray-300 hidden sm:inline">
-                    {getStatusText(evaluation.status)}
+                    {evaluation.status === 'completed' && evaluation.scores?.overall === 0 
+                      ? 'Discarded' 
+                      : getStatusText(evaluation.status)
+                    }
                   </span>
                 </div>
 
-                {(evaluation.status === 'completed' || evaluation.type === 'hackathon') && (
+                {/* Only show View button for valid evaluations (not discarded) */}
+                {(evaluation.status === 'completed' || evaluation.type === 'hackathon') && 
+                 !(evaluation.status === 'completed' && evaluation.scores?.overall === 0) && (
                   <Link href={getViewLink(evaluation)}>
                     <Button size="sm" variant="orange" className="flex-shrink-0">
                       <Eye className="w-4 h-4 sm:mr-1" />

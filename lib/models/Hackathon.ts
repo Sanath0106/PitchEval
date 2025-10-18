@@ -37,10 +37,14 @@ const HackathonSchema = new mongoose.Schema({
     },
   },
   additionalInfo: String,
+  templateAnalysis: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'TemplateAnalysis',
+  },
   status: {
     type: String,
-    enum: ['processing', 'completed', 'failed'],
-    default: 'processing',
+    enum: ['queued', 'processing', 'completed', 'failed'],
+    default: 'queued',
   },
   evaluations: [{
     type: mongoose.Schema.Types.ObjectId,

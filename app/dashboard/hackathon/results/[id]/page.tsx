@@ -30,6 +30,17 @@ interface HackathonEvaluation {
     relevanceScore: number
     reason: string
   }
+  templateValidation?: {
+    themeMatch: {
+      score: number
+      reasoning: string
+    }
+    structureAdherence: {
+      score: number
+      deviations: string[]
+    }
+    overallCompliance: number
+  }
   rank?: number
   createdAt: string
 }
@@ -149,6 +160,25 @@ export default function HackathonResultsPage() {
     e.trackRelevance && e.trackRelevance.isRelevant === false
   )
 
+  // Calculate template compliance statistics
+  const evaluationsWithTemplate = relevantEvaluations.filter(e => e.templateValidation)
+  const highCompliance = evaluationsWithTemplate.filter(e => 
+    e.templateValidation?.overallCompliance !== undefined && e.templateValidation.overallCompliance >= 8
+  ).length
+  const mediumCompliance = evaluationsWithTemplate.filter(e => 
+    e.templateValidation?.overallCompliance !== undefined && 
+    e.templateValidation.overallCompliance >= 6 && e.templateValidation.overallCompliance < 8
+  ).length
+  const lowCompliance = evaluationsWithTemplate.filter(e => 
+    e.templateValidation?.overallCompliance !== undefined && e.templateValidation.overallCompliance < 6
+  ).length
+  const averageCompliance = evaluationsWithTemplate.length > 0 
+    ? evaluationsWithTemplate
+        .filter(e => e.templateValidation?.overallCompliance !== undefined)
+        .reduce((sum, e) => sum + e.templateValidation!.overallCompliance, 0) / 
+      evaluationsWithTemplate.filter(e => e.templateValidation?.overallCompliance !== undefined).length
+    : 0
+
   const getRankIcon = (rank: number) => {
     if (rank === 1) return <Trophy className="w-5 h-5 text-yellow-500" />
     if (rank === 2) return <Medal className="w-5 h-5 text-gray-400" />
@@ -223,6 +253,71 @@ export default function HackathonResultsPage() {
             </Card>
           </div>
 
+          {/* Template Compliance Statistics */}
+          {evaluationsWithTemplate.length > 0 && (
+            <Card className="mb-8 bg-gray-900/60 backdrop-blur-sm border-gray-700/50 hover:border-blue-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-blue-500/20 card-glow">
+              <CardHeader>
+                <CardTitle className="text-white">📋 Template Compliance Overview</CardTitle>
+                <CardDescription className="text-gray-400">
+                  How well submissions followed the provided template
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-4 gap-4 mb-6">
+                  <div className="text-center p-4 bg-gray-800/50 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-400 mb-2">
+                      {averageCompliance.toFixed(1)}/10
+                    </div>
+                    <div className="text-sm text-gray-400">Average Compliance</div>
+                  </div>
+                  
+                  <div className="text-center p-4 bg-gray-800/50 rounded-lg">
+                    <div className="text-2xl font-bold text-green-500 mb-2">{highCompliance}</div>
+                    <div className="text-sm text-gray-400">High Compliance (8+)</div>
+                  </div>
+                  
+                  <div className="text-center p-4 bg-gray-800/50 rounded-lg">
+                    <div className="text-2xl font-bold text-yellow-500 mb-2">{mediumCompliance}</div>
+                    <div className="text-sm text-gray-400">Medium Compliance (6-8)</div>
+                  </div>
+                  
+                  <div className="text-center p-4 bg-gray-800/50 rounded-lg">
+                    <div className="text-2xl font-bold text-red-500 mb-2">{lowCompliance}</div>
+                    <div className="text-sm text-gray-400">Low Compliance (&lt;6)</div>
+                  </div>
+                </div>
+
+                {/* Highlight submissions with significant deviations */}
+                {evaluationsWithTemplate.filter(e => 
+                  e.templateValidation?.overallCompliance !== undefined && e.templateValidation.overallCompliance < 6
+                ).length > 0 && (
+                  <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+                    <h4 className="text-red-400 font-medium mb-2">⚠️ Submissions with Significant Template Deviations</h4>
+                    <div className="space-y-2">
+                      {evaluationsWithTemplate
+                        .filter(e => e.templateValidation?.overallCompliance !== undefined && e.templateValidation.overallCompliance < 6)
+                        .map(evaluation => (
+                          <div key={evaluation._id} className="flex justify-between items-center text-sm">
+                            <span className="text-gray-300">{evaluation.fileName}</span>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-red-400">
+                                {evaluation.templateValidation!.overallCompliance.toFixed(1)}/10
+                              </span>
+                              <Link href={`/dashboard/results/${evaluation._id}`}>
+                                <Button size="sm" variant="outline" className="text-xs border-red-500/50 text-red-400 hover:bg-red-500/20">
+                                  View
+                                </Button>
+                              </Link>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Rankings */}
           {relevantEvaluations.length > 0 && (
             <Card className="mb-8 bg-gray-900/60 backdrop-blur-sm border-gray-700/50 hover:border-blue-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-blue-500/20 card-glow">
@@ -256,7 +351,44 @@ export default function HackathonResultsPage() {
                         </div>
                         
                         <div className="flex items-center justify-between sm:justify-end space-x-3 sm:space-x-6 flex-shrink-0">
-                          <div className="text-right">
+                          {/* Template Compliance Column */}
+                          {evaluation.templateValidation && evaluation.templateValidation.overallCompliance !== undefined && (
+                            <div className="text-right min-w-[80px]">
+                              <div className="text-sm font-semibold text-blue-400">
+                                {evaluation.templateValidation.overallCompliance.toFixed(1)}/10
+                              </div>
+                              <div className="text-xs text-gray-400">Template</div>
+                              {/* Enhanced visual indicator for template compliance */}
+                              <div className="mt-1 flex items-center justify-center">
+                                {evaluation.templateValidation.overallCompliance >= 8 && (
+                                  <div className="flex items-center space-x-1">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    <span className="text-xs text-green-400">High</span>
+                                  </div>
+                                )}
+                                {evaluation.templateValidation.overallCompliance >= 6 && evaluation.templateValidation.overallCompliance < 8 && (
+                                  <div className="flex items-center space-x-1">
+                                    <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                    <span className="text-xs text-yellow-400">Med</span>
+                                  </div>
+                                )}
+                                {evaluation.templateValidation.overallCompliance < 6 && (
+                                  <div className="flex items-center space-x-1">
+                                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                    <span className="text-xs text-red-400">Low</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          {(!evaluation.templateValidation || evaluation.templateValidation.overallCompliance === undefined) && (
+                            <div className="text-right min-w-[80px]">
+                              <div className="text-sm text-gray-500">N/A</div>
+                              <div className="text-xs text-gray-400">Template</div>
+                            </div>
+                          )}
+                          
+                          <div className="text-right min-w-[80px]">
                             <div className="text-lg font-semibold text-orange-500">
                               {evaluation.scores?.overall.toFixed(1)}/10
                             </div>
@@ -348,16 +480,16 @@ export default function HackathonResultsPage() {
           )}
 
           {/* Actions */}
-          <div className="flex justify-center gap-4">
+          <div className="flex flex-col sm:flex-row justify-center gap-4 mt-8 mb-8">
             <Link href="/dashboard">
-              <Button variant="outline" size="lg" className="border-gray-600 text-gray-300 hover:bg-gray-800">
+              <Button variant="outline" size="lg" className="w-full sm:w-auto border-gray-600 text-gray-300 hover:bg-gray-800 bg-gray-900/80 backdrop-blur-sm">
                 <Home className="w-4 h-4 mr-2" />
                 Back to Dashboard
               </Button>
             </Link>
             
             {(relevantEvaluations.length > 0 || discardedEvaluations.length > 0) && (
-              <Button onClick={handleDownloadResults} variant="orange" size="lg">
+              <Button onClick={handleDownloadResults} variant="orange" size="lg" className="w-full sm:w-auto shadow-lg shadow-orange-500/25">
                 <Download className="w-4 h-4 mr-2" />
                 Download Results (CSV)
               </Button>

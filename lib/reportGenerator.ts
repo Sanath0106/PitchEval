@@ -18,227 +18,251 @@ export async function generatePDFReport(evaluation: EvaluationData): Promise<Buf
   const doc = new jsPDF()
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
-  
-  // Set Times New Roman as default font
-  doc.setFont('times', 'normal')
-  
-  // Colors
-  const orangeColor: [number, number, number] = [255, 107, 53]
-  const darkGray: [number, number, number] = [64, 64, 64]
-  const lightGray: [number, number, number] = [128, 128, 128]
-  const black: [number, number, number] = [0, 0, 0]
-  const white: [number, number, number] = [255, 255, 255]
-  
-  // PAGE 1: SCORES AND OVERVIEW
-  
-  // Main border around entire page
-  doc.setDrawColor(...black)
+
+  // Professional color scheme
+  const orange = [255, 107, 53] as [number, number, number]
+  const darkGray = [45, 45, 45] as [number, number, number]
+  const mediumGray = [120, 120, 120] as [number, number, number]
+  const lightGray = [240, 240, 240] as [number, number, number]
+  const white = [255, 255, 255] as [number, number, number]
+
+  const margin = 20
+  const contentWidth = pageWidth - (margin * 2)
+
+  // Helper functions
+  const getRating = (score: number): string => {
+    if (score >= 8.5) return 'OUTSTANDING'
+    if (score >= 7.5) return 'EXCELLENT'
+    if (score >= 6.5) return 'GOOD'
+    if (score >= 5.5) return 'SATISFACTORY'
+    return 'NEEDS IMPROVEMENT'
+  }
+
+  const addPageHeader = (pageNum: number, title: string) => {
+    // Orange header bar
+    doc.setFillColor(...orange)
+    doc.rect(0, 0, pageWidth, 25, 'F')
+
+    // Header text
+    doc.setTextColor(...white)
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
+    doc.text('PITCHEVAL REPORT', margin, 16)
+
+    doc.setFontSize(10)
+    doc.text(`Page ${pageNum} of 3`, pageWidth - margin - 25, 16)
+
+    // Page title
+    doc.setTextColor(...darkGray)
+    doc.setFontSize(18)
+    doc.setFont('helvetica', 'bold')
+    doc.text(title, margin, 45)
+
+    // Underline
+    doc.setDrawColor(...orange)
+    doc.setLineWidth(2)
+    doc.line(margin, 48, margin + 80, 48)
+  }
+
+  // PAGE 1: OVERVIEW & SCORES
+  addPageHeader(1, 'EVALUATION OVERVIEW')
+
+  let yPos = 65
+
+  // Overall Score Card
+  doc.setFillColor(...lightGray)
+  doc.rect(margin, yPos, contentWidth, 50, 'F')
+  doc.setDrawColor(...mediumGray)
   doc.setLineWidth(1)
-  doc.rect(10, 10, pageWidth - 20, pageHeight - 20)
-  
-  // Header background
-  doc.setFillColor(248, 249, 250)
-  doc.rect(15, 15, pageWidth - 30, 40, 'F')
-  
-  // Header border
-  doc.setDrawColor(...black)
-  doc.setLineWidth(1)
-  doc.rect(15, 15, pageWidth - 30, 40)
-  
-  // Logo area
-  doc.setFillColor(...orangeColor)
-  doc.circle(25, 35, 8, 'F')
+  doc.rect(margin, yPos, contentWidth, 50)
+
+  // Large score circle
+  doc.setFillColor(...orange)
+  doc.circle(margin + 40, yPos + 25, 20, 'F')
+
   doc.setTextColor(...white)
-  doc.setFontSize(14)
-  doc.text('P', 22, 39)
-  
-  // Title
-  doc.setTextColor(...orangeColor)
-  doc.setFont('times', 'bold')
-  doc.setFontSize(24)
-  doc.text('PitchEval Report', 40, 39)
-  
-  // Subtitle
+  doc.setFontSize(28)
+  doc.setFont('helvetica', 'bold')
+  const scoreText = evaluation.scores.overall.toFixed(1)
+  doc.text(scoreText, margin + 32, yPos + 30)
+
+  // Rating text
   doc.setTextColor(...darkGray)
-  doc.setFont('times', 'italic')
+  doc.setFontSize(16)
+  doc.setFont('helvetica', 'bold')
+  doc.text(getRating(evaluation.scores.overall), margin + 80, yPos + 20)
+
   doc.setFontSize(12)
-  doc.text('AI-Powered Presentation Analysis', 40, 48)
-  
-  // File Information Section
-  doc.setFillColor(248, 249, 250)
-  doc.rect(20, 65, pageWidth - 40, 35, 'F')
-  doc.setDrawColor(...black)
-  doc.setLineWidth(0.5)
-  doc.rect(20, 65, pageWidth - 40, 35)
-  
-  doc.setTextColor(...black)
-  doc.setFont('times', 'bold')
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...mediumGray)
+  doc.text('Overall Performance Rating', margin + 80, yPos + 35)
+
+  yPos += 65
+
+  // Presentation Details
+  doc.setTextColor(...darkGray)
   doc.setFontSize(14)
-  doc.text('File Information', 25, 75)
-  
-  doc.setFont('times', 'normal')
-  doc.setFontSize(11)
-  doc.text(`File Name: ${evaluation.fileName}`, 25, 85)
-  doc.text(`Domain: ${evaluation.domain}`, 25, 92)
-  doc.text(`Evaluated: ${new Date(evaluation.createdAt).toLocaleDateString()}`, 25, 99)
-  
-  // Overall Score Section
-  doc.setFillColor(250, 250, 250)
-  doc.rect(20, 110, pageWidth - 40, 50, 'F')
-  doc.setDrawColor(...black)
-  doc.setLineWidth(1)
-  doc.rect(20, 110, pageWidth - 40, 50)
-  
-  doc.setTextColor(...orangeColor)
-  doc.setFont('times', 'bold')
-  doc.setFontSize(16)
-  doc.text('Overall Score', 25, 125)
-  
-  doc.setFont('times', 'bold')
-  doc.setFontSize(36)
-  doc.text(`${evaluation.scores.overall.toFixed(1)}`, 25, 145)
-  doc.setFontSize(18)
-  doc.text('/10', 55, 145)
-  
-  // Score interpretation
-  doc.setFont('times', 'italic')
-  doc.setFontSize(10)
-  doc.setTextColor(...darkGray)
-  const scoreText = evaluation.scores.overall >= 8 ? 'Excellent' : 
-                   evaluation.scores.overall >= 7 ? 'Good' :
-                   evaluation.scores.overall >= 6 ? 'Average' :
-                   evaluation.scores.overall >= 5 ? 'Below Average' : 'Needs Improvement'
-  doc.text(`Performance: ${scoreText}`, 25, 155)
-  
-  // Detailed Scores Section
-  doc.setTextColor(...black)
-  doc.setFont('times', 'bold')
-  doc.setFontSize(16)
-  doc.text('Detailed Breakdown', 20, 180)
-  
-  const scores = [
-    { name: 'Feasibility', score: evaluation.scores.feasibility },
-    { name: 'Innovation', score: evaluation.scores.innovation },
-    { name: 'Impact', score: evaluation.scores.impact },
-    { name: 'Clarity', score: evaluation.scores.clarity },
+  doc.setFont('helvetica', 'bold')
+  doc.text('PRESENTATION DETAILS', margin, yPos)
+  yPos += 15
+
+  const details = [
+    ['File Name:', evaluation.fileName],
+    ['Domain:', evaluation.domain.toUpperCase()],
+    ['Analysis Date:', new Date(evaluation.createdAt).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })]
   ]
-  
-  let yPos = 195
-  scores.forEach(({ name, score }) => {
-    // Simple score box with black border
-    doc.setDrawColor(...black)
-    doc.setFillColor(240, 240, 240)
-    doc.rect(20, yPos - 8, 15, 12, 'FD')
-    
-    doc.setTextColor(...black)
-    doc.setFont('times', 'bold')
-    doc.setFontSize(10)
-    doc.text(score.toFixed(1), 22, yPos - 1)
-    
-    // Score details
-    doc.setTextColor(...black)
-    doc.setFont('times', 'normal')
-    doc.setFontSize(12)
-    doc.text(`${name}`, 40, yPos)
-    
-    // Simple progress bar with black border
-    doc.setDrawColor(...black)
-    doc.setFillColor(240, 240, 240)
-    doc.rect(120, yPos - 6, 60, 4, 'FD')
-    
-    // Progress bar fill - simple gray
-    doc.setFillColor(100, 100, 100)
-    doc.rect(120, yPos - 6, (score / 10) * 60, 4, 'F')
-    
-    yPos += 20
+
+  details.forEach(([label, value]) => {
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...mediumGray)
+    doc.text(label, margin, yPos)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...darkGray)
+    doc.text(value, margin + 50, yPos)
+    yPos += 12
   })
-  
-  // Footer for page 1
-  doc.setDrawColor(...black)
-  doc.setLineWidth(0.5)
-  doc.line(20, pageHeight - 25, pageWidth - 20, pageHeight - 25)
-  doc.setTextColor(...lightGray)
-  doc.setFont('times', 'normal')
-  doc.setFontSize(8)
-  doc.text('PitchEval website - Confidential Report', 20, pageHeight - 15)
-  doc.text('Page 1 of 2', pageWidth - 35, pageHeight - 15)
-  
-  // PAGE 2: SUGGESTIONS
-  doc.addPage()
-  
-  // Main border around entire page
-  doc.setDrawColor(...black)
-  doc.setLineWidth(1)
-  doc.rect(10, 10, pageWidth - 20, pageHeight - 20)
-  
-  // Header background
-  doc.setFillColor(248, 249, 250)
-  doc.rect(15, 15, pageWidth - 30, 35, 'F')
-  
-  // Header border
-  doc.setDrawColor(...black)
-  doc.setLineWidth(1)
-  doc.rect(15, 15, pageWidth - 30, 35)
-  
-  doc.setTextColor(...orangeColor)
-  doc.setFont('times', 'bold')
-  doc.setFontSize(20)
-  doc.text('Improvement Suggestions', 20, 35)
-  
+
+  yPos += 10
+
+  // Score Breakdown
   doc.setTextColor(...darkGray)
-  doc.setFont('times', 'italic')
-  doc.setFontSize(11)
-  doc.text('AI-generated recommendations to enhance your presentation', 20, 45)
-  
-  // Suggestions
-  yPos = 65
-  evaluation.suggestions.forEach((suggestion, index) => {
-    if (yPos > pageHeight - 60) {
-      // Add new page if needed
-      doc.addPage()
-      yPos = 30
-    }
-    
-    // Calculate required height for full text
-    const lines = doc.splitTextToSize(suggestion, pageWidth - 80)
-    const requiredHeight = Math.max(25, lines.length * 4 + 15)
-    
-    // Simple suggestion box with black border
-    doc.setFillColor(250, 250, 250)
-    doc.rect(20, yPos - 5, pageWidth - 40, requiredHeight, 'F')
-    
-    // Black border
-    doc.setDrawColor(...black)
-    doc.setLineWidth(1)
-    doc.rect(20, yPos - 5, pageWidth - 40, requiredHeight)
-    
-    // Simple number circle
-    doc.setDrawColor(...black)
-    doc.setFillColor(240, 240, 240)
-    doc.circle(30, yPos + 8, 6, 'FD')
-    doc.setTextColor(...black)
-    doc.setFont('times', 'bold')
-    doc.setFontSize(10)
-    doc.text(`${index + 1}`, 27, yPos + 11)
-    
-    // Full suggestion text - no cutting off
-    doc.setTextColor(...black)
-    doc.setFont('times', 'normal')
-    doc.setFontSize(9)
-    doc.text(lines, 45, yPos + 5) // Include ALL lines
-    
-    yPos += requiredHeight + 8
+  doc.setFontSize(14)
+  doc.setFont('helvetica', 'bold')
+  doc.text('DETAILED SCORES', margin, yPos)
+  yPos += 15
+
+  const scores = [
+    ['Innovation', evaluation.scores.innovation],
+    ['Feasibility', evaluation.scores.feasibility],
+    ['Impact', evaluation.scores.impact],
+    ['Clarity', evaluation.scores.clarity]
+  ]
+
+  scores.forEach(([name, score]) => {
+    // Score name
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...darkGray)
+    doc.text(name as string, margin, yPos)
+
+    // Progress bar background
+    const barWidth = 100
+    doc.setFillColor(...lightGray)
+    doc.rect(margin + 50, yPos - 4, barWidth, 8, 'F')
+
+    // Progress bar fill
+    const fillWidth = ((score as number) / 10) * barWidth
+    doc.setFillColor(...orange)
+    doc.rect(margin + 50, yPos - 4, fillWidth, 8, 'F')
+
+    // Score value
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...orange)
+    doc.text(`${(score as number).toFixed(1)}/10`, margin + 160, yPos)
+
+    yPos += 18
   })
-  
-  // Footer for page 2
-  doc.setDrawColor(...black)
-  doc.setLineWidth(0.5)
-  doc.line(20, pageHeight - 25, pageWidth - 20, pageHeight - 25)
-  doc.setTextColor(...lightGray)
-  doc.setFont('times', 'normal')
-  doc.setFontSize(8)
-  doc.text('Generated by PitchEval AI - For more insights visit PitchEval website', 20, pageHeight - 15)
-  doc.text('Page 2 of 2', pageWidth - 35, pageHeight - 15)
-  
+
+  // Footer
+  doc.setTextColor(...mediumGray)
+  doc.setFontSize(9)
+  doc.text('Generated by PitchEval • https://pitcheval.vercel.app', margin, pageHeight - 15)
+
+  // PAGE 2: RECOMMENDATIONS 1-4
+  doc.addPage()
+  addPageHeader(2, 'KEY RECOMMENDATIONS')
+
+  yPos = 65
+  const firstFour = evaluation.suggestions.slice(0, 4)
+
+  firstFour.forEach((suggestion, index) => {
+    // Recommendation card
+    doc.setFillColor(...lightGray)
+    const lines = doc.splitTextToSize(suggestion, contentWidth - 50)
+    const cardHeight = Math.max(25, (lines.length * 4.2) + 12)
+
+    doc.rect(margin, yPos, contentWidth, cardHeight, 'F')
+    doc.setDrawColor(...mediumGray)
+    doc.setLineWidth(0.5)
+    doc.rect(margin, yPos, contentWidth, cardHeight)
+
+    // Number badge
+    doc.setFillColor(...orange)
+    doc.circle(margin + 15, yPos + 12, 8, 'F')
+
+    doc.setTextColor(...white)
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`${index + 1}`, margin + 12, yPos + 15)
+
+    // Recommendation text - properly formatted
+    doc.setTextColor(...darkGray)
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+
+    lines.forEach((line: string, lineIndex: number) => {
+      doc.text(line.trim(), margin + 30, yPos + 10 + (lineIndex * 4.2))
+    })
+
+    yPos += cardHeight + 8
+  })
+
+  // Footer
+  doc.setTextColor(...mediumGray)
+  doc.setFontSize(9)
+  doc.text('Generated by PitchEval • https://pitcheval.vercel.app', margin, pageHeight - 15)
+
+  // PAGE 3: RECOMMENDATIONS 5-7
+  doc.addPage()
+  addPageHeader(3, 'ADDITIONAL RECOMMENDATIONS')
+
+  yPos = 65
+  const remaining = evaluation.suggestions.slice(4, 7)
+
+  remaining.forEach((suggestion, index) => {
+    // Recommendation card
+    doc.setFillColor(...lightGray)
+    const lines = doc.splitTextToSize(suggestion, contentWidth - 50)
+    const cardHeight = Math.max(25, (lines.length * 4.2) + 12)
+
+    doc.rect(margin, yPos, contentWidth, cardHeight, 'F')
+    doc.setDrawColor(...mediumGray)
+    doc.setLineWidth(0.5)
+    doc.rect(margin, yPos, contentWidth, cardHeight)
+
+    // Number badge
+    doc.setFillColor(...orange)
+    doc.circle(margin + 15, yPos + 12, 8, 'F')
+
+    doc.setTextColor(...white)
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`${index + 5}`, margin + 12, yPos + 15)
+
+    // Recommendation text - properly formatted
+    doc.setTextColor(...darkGray)
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+
+    lines.forEach((line: string, lineIndex: number) => {
+      doc.text(line.trim(), margin + 30, yPos + 10 + (lineIndex * 4.2))
+    })
+
+    yPos += cardHeight + 8
+  })
+
+  // Final footer
+  doc.setTextColor(...mediumGray)
+  doc.setFontSize(9)
+  doc.text('Generated by PitchEval • https://pitcheval.vercel.app', margin, pageHeight - 15)
+  doc.text('© 2025 PitchEval. Professional AI-Powered Pitch Analysis.', margin, pageHeight - 8)
+
   return Buffer.from(doc.output('arraybuffer'))
 }

@@ -36,13 +36,17 @@ export async function GET(
 
     // Separate relevant and discarded evaluations
     const relevantEvaluations = evaluations.filter(e => 
-      !e.trackRelevance || e.trackRelevance.isRelevant !== false
+      // Include if: no track relevance check OR track is relevant AND overall score > 0
+      (!e.trackRelevance || e.trackRelevance.isRelevant !== false) && 
+      (e.scores?.overall || 0) > 0
     )
     const discardedEvaluations = evaluations.filter(e => 
-      e.trackRelevance && e.trackRelevance.isRelevant === false
+      // Include if: track is irrelevant OR overall score is 0 (invalid file)
+      (e.trackRelevance && e.trackRelevance.isRelevant === false) ||
+      (e.scores?.overall || 0) === 0
     )
 
-    // Create CSV content
+    // Create CSV content with simplified columns
     const csvHeaders = [
       'Status',
       'Rank',
@@ -53,7 +57,6 @@ export async function GET(
       'Impact',
       'Clarity',
       'Matched Tracks',
-      'Track Relevance Score',
       'Discard Reason',
       'Evaluated Date'
     ]
@@ -63,14 +66,13 @@ export async function GET(
       'RANKED',
       index + 1,
       evaluation.fileName,
-      evaluation.scores?.overall?.toFixed(2) || 'N/A',
-      evaluation.scores?.feasibility?.toFixed(2) || 'N/A',
-      evaluation.scores?.innovation?.toFixed(2) || 'N/A',
-      evaluation.scores?.impact?.toFixed(2) || 'N/A',
-      evaluation.scores?.clarity?.toFixed(2) || 'N/A',
+      evaluation.scores?.overall?.toFixed(1) || 'N/A',
+      evaluation.scores?.feasibility?.toFixed(1) || 'N/A',
+      evaluation.scores?.innovation?.toFixed(1) || 'N/A',
+      evaluation.scores?.impact?.toFixed(1) || 'N/A',
+      evaluation.scores?.clarity?.toFixed(1) || 'N/A',
       evaluation.trackRelevance?.matchedTracks?.join('; ') || 'All Tracks',
-      evaluation.trackRelevance?.relevanceScore?.toFixed(1) || 'N/A',
-      '',
+      '', // No discard reason for ranked items
       new Date(evaluation.createdAt).toLocaleDateString()
     ])
 
@@ -79,14 +81,13 @@ export async function GET(
       'DISCARDED',
       'N/A',
       evaluation.fileName,
-      evaluation.scores?.overall?.toFixed(2) || 'N/A',
-      evaluation.scores?.feasibility?.toFixed(2) || 'N/A',
-      evaluation.scores?.innovation?.toFixed(2) || 'N/A',
-      evaluation.scores?.impact?.toFixed(2) || 'N/A',
-      evaluation.scores?.clarity?.toFixed(2) || 'N/A',
+      evaluation.scores?.overall?.toFixed(1) || '0.0',
+      evaluation.scores?.feasibility?.toFixed(1) || '0.0',
+      evaluation.scores?.innovation?.toFixed(1) || '0.0',
+      evaluation.scores?.impact?.toFixed(1) || '0.0',
+      evaluation.scores?.clarity?.toFixed(1) || '0.0',
       'None',
-      evaluation.trackRelevance?.relevanceScore?.toFixed(1) || 'N/A',
-      evaluation.trackRelevance?.reason || 'Track mismatch',
+      evaluation.trackRelevance?.reason || evaluation.suggestions?.[0] || 'Invalid file type',
       new Date(evaluation.createdAt).toLocaleDateString()
     ])
 

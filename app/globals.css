@@ -298,6 +298,84 @@ nhanced Dashboard Background Animations */
 
 .card-glow:hover::before {
   left: 100%;
+}
+
+/* Grid Background Pattern */
+.grid-background {
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: 0 0;
+}
+
+.grid-background-large {
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 60px 60px;
+  background-position: 0 0;
+}
+
+/* Dot Grid Pattern Alternative */
+.dot-grid {
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+  background-size: 30px 30px;
+  background-position: 0 0;
+}
+
+/* Animated Grid */
+@keyframes grid-fade {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.grid-animated {
+  animation: grid-fade 4s ease-in-out infinite;
+}
+
+/* Torch Search Animation */
+@keyframes torch-sweep {
+  0% {
+    transform: rotate(-20deg);
+  }
+  50% {
+    transform: rotate(20deg);
+  }
+  100% {
+    transform: rotate(-20deg);
+  }
+}
+
+@keyframes light-flicker {
+  0%, 100% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(0.95);
+  }
+  75% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+.torch-sweep {
+  animation: torch-sweep 4s ease-in-out infinite;
+}
+
+.light-flicker {
+  animation: light-flicker 2s ease-in-out infinite;
 }/* 
 Emoji Color Fix */
 .emoji {

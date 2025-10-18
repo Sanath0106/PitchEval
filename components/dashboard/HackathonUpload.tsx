@@ -12,10 +12,15 @@ import { Upload, FileText, Loader2, X } from 'lucide-react'
 import Logo from '@/components/ui/Logo'
 import ProcessingLoader from '@/components/ui/ProcessingLoader'
 
+
 export default function HackathonUpload() {
   const [hackathonName, setHackathonName] = useState('')
   const [tracks, setTracks] = useState('')
   const [additionalInfo, setAdditionalInfo] = useState('')
+
+  const [templateFile, setTemplateFile] = useState<File | null>(null)
+  const [templateAnalysisStatus, setTemplateAnalysisStatus] = useState<'idle' | 'analyzing' | 'complete' | 'error'>('idle')
+  const [templateAnalysis, setTemplateAnalysis] = useState<any>(null)
   const [files, setFiles] = useState<File[]>([])
   const [weights, setWeights] = useState({
     innovation: 25,
@@ -25,6 +30,76 @@ export default function HackathonUpload() {
   })
   const [isUploading, setIsUploading] = useState(false)
   const [hackathonId, setHackathonId] = useState<string | null>(null)
+
+  const handleTemplateFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+      
+      // Enhanced file validation
+      if (file.type !== 'application/pdf') {
+        alert('Invalid file format. Only PDF files are allowed for templates.')
+        e.target.value = ''
+        return
+      }
+      
+      if (file.size > 10 * 1024 * 1024) {
+        alert('File size exceeds limit. Template files must be under 10MB.')
+        e.target.value = ''
+        return
+      }
+
+      if (file.size < 1024) {
+        alert('File appears to be empty or corrupted. Please upload a valid PDF template.')
+        e.target.value = ''
+        return
+      }
+      
+      setTemplateFile(file)
+      setTemplateAnalysisStatus('analyzing')
+      setTemplateAnalysis(null)
+      
+      try {
+        // Analyze template structure
+        const formData = new FormData()
+        formData.append('templateFile', file)
+        if (additionalInfo) {
+          formData.append('additionalContext', additionalInfo)
+        }
+        
+        const response = await fetch('/api/templates/analyze', {
+          method: 'POST',
+          body: formData
+        })
+        
+        const result = await response.json()
+        
+        if (response.ok && result.success) {
+          setTemplateAnalysis(result)
+          setTemplateAnalysisStatus('complete')
+        } else {
+          throw new Error(result.error || 'Template analysis failed')
+        }
+      } catch (error) {
+        console.error('Template analysis error:', error)
+        setTemplateAnalysisStatus('error')
+        
+        // Show specific error message to user
+        const errorMessage = error instanceof Error ? error.message : 'Failed to analyze template. Please try again.'
+        alert(errorMessage)
+        
+        // Reset template file on error
+        setTemplateFile(null)
+      }
+      
+      e.target.value = ''
+    }
+  }
+
+  const removeTemplateFile = () => {
+    setTemplateFile(null)
+    setTemplateAnalysis(null)
+    setTemplateAnalysisStatus('idle')
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -107,9 +182,18 @@ export default function HackathonUpload() {
     formData.append('hackathonName', hackathonName)
     formData.append('tracks', tracks)
     formData.append('additionalInfo', additionalInfo)
+
     formData.append('weights', JSON.stringify(weights))
     
-    files.forEach((file, index) => {
+    // Add template file and analysis if available
+    if (templateFile) {
+      formData.append('templateFile', templateFile)
+    }
+    if (templateAnalysis) {
+      formData.append('templateAnalysis', JSON.stringify(templateAnalysis))
+    }
+    
+    files.forEach((file) => {
       formData.append(`files`, file)
     })
 
@@ -122,25 +206,24 @@ export default function HackathonUpload() {
       if (response.ok) {
         const result = await response.json()
         setHackathonId(result.hackathonId)
-        // Don't redirect immediately, let the processing loader handle it
+        // Keep isUploading true - ProcessingLoader will handle completion
       } else {
         setIsUploading(false)
       }
     } catch (error) {
-      // Handle upload error silently
-    } finally {
-      if (!hackathonId) {
-        setIsUploading(false)
-      }
+      // Handle upload error
+      setIsUploading(false)
     }
   }
 
-  // Show processing loader when uploading and we have a hackathon ID
-  if (isUploading && hackathonId) {
+  // Show processing loader when uploading
+  if (isUploading) {
     return (
       <ProcessingLoader 
-        message="Processing Hackathon Submissions"
-        submessage={`Analyzing ${files.length} presentations with track validation. This may take 3-5 minutes...`}
+        message="Bulk Analysis in Progress"
+        submessage={`Analyzing ${files.length} presentations with track validation...`}
+        hackathonId={hackathonId || undefined}
+        pollForCompletion={!!hackathonId}
         onComplete={() => {
           window.location.href = `/dashboard/hackathon/results/${hackathonId}`
         }}
@@ -235,6 +318,111 @@ export default function HackathonUpload() {
                     rows={3}
                     className="bg-gray-800/50 border-gray-600 text-white placeholder:text-gray-400"
                   />
+                </div>
+              </CardContent>
+            </Card>
+
+
+
+            <Card className="bg-gray-900/60 backdrop-blur-sm border-gray-700/50 hover:border-blue-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-blue-500/20 card-glow">
+              <CardHeader>
+                <CardTitle className="text-white">Template Upload (Optional)</CardTitle>
+                <CardDescription className="text-gray-400">
+                  Upload a reference template to validate submissions against your expected format
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {!templateFile ? (
+                    <div className="flex items-center justify-center w-full">
+                      <label
+                        htmlFor="templateFile"
+                        className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-800/50 hover:bg-blue-500/10 hover:border-blue-500/50 transition-all duration-300"
+                      >
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                          <Upload className="w-8 h-8 mb-2 text-gray-400" />
+                          <p className="mb-2 text-sm text-gray-300">
+                            <span className="font-semibold">Upload Template PDF</span>
+                          </p>
+                          <p className="text-xs text-gray-400">PDF (MAX. 10MB) - Optional reference format</p>
+                        </div>
+                        <input
+                          id="templateFile"
+                          type="file"
+                          className="hidden"
+                          accept=".pdf"
+                          onChange={handleTemplateFileChange}
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <FileText className="w-5 h-5 text-blue-400" />
+                          <div>
+                            <p className="text-sm font-medium text-gray-300">{templateFile.name}</p>
+                            <p className="text-xs text-gray-400">Template uploaded</p>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={removeTemplateFile}
+                          className="text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+
+                      {/* Template Analysis Status */}
+                      <div className="p-3 bg-gray-800/30 rounded-lg">
+                        <div className="flex items-center space-x-2 mb-2">
+                          {templateAnalysisStatus === 'analyzing' && (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                              <span className="text-sm text-blue-400">Analyzing template structure...</span>
+                            </>
+                          )}
+                          {templateAnalysisStatus === 'complete' && (
+                            <>
+                              <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                                <div className="w-2 h-2 bg-white rounded-full"></div>
+                              </div>
+                              <span className="text-sm text-green-400">Template analysis complete</span>
+                            </>
+                          )}
+                          {templateAnalysisStatus === 'error' && (
+                            <>
+                              <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center">
+                                <X className="w-2 h-2 text-white" />
+                              </div>
+                              <span className="text-sm text-red-400">Analysis failed</span>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Template Structure Preview */}
+                        {templateAnalysisStatus === 'complete' && templateAnalysis && (
+                          <div className="space-y-2">
+                            <div className="text-xs text-gray-400">
+                              <strong>Theme:</strong> {templateAnalysis.theme?.primaryTheme || 'Not detected'}
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              <strong>Structure:</strong> {templateAnalysis.structure?.totalSlides || 0} slides
+                            </div>
+                            {templateAnalysis.structure?.sections && templateAnalysis.structure.sections.length > 0 && (
+                              <div className="text-xs text-gray-400">
+                                <strong>Sections:</strong> {templateAnalysis.structure.sections.slice(0, 3).map((s: any) => s.title).join(', ')}
+                                {templateAnalysis.structure.sections.length > 3 && '...'}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

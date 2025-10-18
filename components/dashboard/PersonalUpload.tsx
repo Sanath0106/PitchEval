@@ -10,13 +10,16 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Upload, FileText, Loader2 } from 'lucide-react'
 import ProcessingLoader from '@/components/ui/ProcessingLoader'
+
 import Logo from '@/components/ui/Logo'
 
 export default function PersonalUpload() {
   const [file, setFile] = useState<File | null>(null)
   const [domain, setDomain] = useState('')
   const [description, setDescription] = useState('')
+
   const [isUploading, setIsUploading] = useState(false)
+  const [evaluationId, setEvaluationId] = useState<string | null>(null)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -42,7 +45,15 @@ export default function PersonalUpload() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!file) return
+    if (!file) {
+      alert('Please select a file to upload.')
+      return
+    }
+    
+    if (!domain) {
+      alert('Please select a project domain/track.')
+      return
+    }
 
     setIsUploading(true)
     
@@ -59,14 +70,18 @@ export default function PersonalUpload() {
 
       if (response.ok) {
         const result = await response.json()
-        // Handle success - redirect to results page
-        window.location.href = `/dashboard/results/${result.evaluationId}`
+        setEvaluationId(result.evaluationId)
+        // Keep isUploading true - ProcessingLoader will handle completion
       } else {
-        // Handle upload failure silently
+        // Handle upload failure
+        const errorData = await response.json()
+        alert(`Upload failed: ${errorData.error || 'Unknown error'}`)
+        setIsUploading(false)
       }
     } catch (error) {
-      // Handle upload error silently
-    } finally {
+      // Handle upload error
+      console.error('Upload error:', error)
+      alert('Upload failed: Network error')
       setIsUploading(false)
     }
   }
@@ -74,11 +89,16 @@ export default function PersonalUpload() {
   if (isUploading) {
     return (
       <ProcessingLoader 
-        message="Processing Your Presentation"
-        submessage="Our AI is analyzing your presentation with Gemini. This may take 2-3 minutes..."
+        message="AI Analysis in Progress"
+        submessage="Analyzing your presentation with Gemini AI..."
+        evaluationId={evaluationId || undefined}
+        pollForCompletion={!!evaluationId}
         onComplete={() => {
-          // This will be handled by the upload success redirect
-          setIsUploading(false)
+          if (evaluationId) {
+            window.location.href = `/dashboard/results/${evaluationId}`
+          } else {
+            setIsUploading(false)
+          }
         }}
       />
     )
@@ -176,10 +196,10 @@ export default function PersonalUpload() {
                 </div>
 
                 <div>
-                  <Label htmlFor="domain" className="text-gray-300">Project Domain/Track</Label>
+                  <Label htmlFor="domain" className="text-gray-300">Project Domain/Track *</Label>
                   <Select value={domain} onValueChange={setDomain} required>
                     <SelectTrigger className="bg-gray-800/50 border-gray-600 text-white">
-                      <SelectValue placeholder="Select project domain" />
+                      <SelectValue placeholder="Select project domain (required)" />
                     </SelectTrigger>
                     <SelectContent className="bg-gray-800 border-gray-600 text-white">
                       <SelectItem value="web-development" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">Web Development</SelectItem>
@@ -206,6 +226,8 @@ export default function PersonalUpload() {
                   </Select>
                 </div>
 
+
+
                 <div>
                   <Label htmlFor="description" className="text-gray-300">Additional Information (Optional)</Label>
                   <Textarea
@@ -222,7 +244,7 @@ export default function PersonalUpload() {
                   type="submit" 
                   className="w-full" 
                   variant="orange"
-                  disabled={!file || isUploading}
+                  disabled={!file || !domain || isUploading}
                 >
                   {isUploading ? (
                     <>

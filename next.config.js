@@ -23,7 +23,7 @@ const nextConfig = {
   },
   webpack: (config, { dev, isServer }) => {
     config.resolve.alias.canvas = false;
-    
+
     // Add explicit path aliases for better resolution
     config.resolve.alias = {
       ...config.resolve.alias,
@@ -33,7 +33,7 @@ const nextConfig = {
       '@/app': path.resolve(__dirname, 'app'),
       'pdf-parse/test': false,
     };
-    
+
     // Exclude problematic files from pdf-parse
     config.module.rules.push({
       test: /node_modules\/pdf-parse\/.*\.pdf$/,
@@ -44,7 +44,7 @@ const nextConfig = {
     if (dev) {
       const originalWarn = console.warn;
       const originalError = console.error;
-      
+
       console.warn = (...args) => {
         const message = args.join(' ');
         if (message.includes('headers()') || message.includes('sync-dynamic-apis')) {
@@ -52,7 +52,7 @@ const nextConfig = {
         }
         originalWarn.apply(console, args);
       };
-      
+
       console.error = (...args) => {
         const message = args.join(' ');
         if (message.includes('headers()') || message.includes('sync-dynamic-apis')) {
@@ -61,7 +61,7 @@ const nextConfig = {
         originalError.apply(console, args);
       };
     }
-    
+
     return config;
   }
 };

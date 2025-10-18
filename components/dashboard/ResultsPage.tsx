@@ -13,6 +13,7 @@ interface EvaluationData {
   _id: string
   fileName: string
   domain: string
+  hackathonId?: string
   status: 'processing' | 'completed' | 'failed'
   scores?: {
     feasibility: number
@@ -22,6 +23,17 @@ interface EvaluationData {
     overall: number
   }
   suggestions?: string[]
+  templateValidation?: {
+    themeMatch: {
+      score: number
+      reasoning: string
+    }
+    structureAdherence: {
+      score: number
+      deviations: string[]
+    }
+    overallCompliance: number
+  }
   createdAt: string
 }
 
@@ -127,19 +139,40 @@ export default function ResultsPage({ evaluation }: ResultsPageProps) {
           {evaluation.status === 'completed' && evaluation.scores && (
             <>
               <div className="grid md:grid-cols-2 gap-6 mb-8">
-                <Card className="bg-gray-900/60 backdrop-blur-sm border-gray-700/50 hover:border-orange-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-orange-500/20 card-glow">
+                <Card className={`bg-gray-900/60 backdrop-blur-sm border-gray-700/50 transition-all duration-500 card-glow ${
+                  evaluation.scores.overall === 0 
+                    ? 'hover:border-red-500/50 hover:shadow-2xl hover:shadow-red-500/20' 
+                    : 'hover:border-orange-500/50 hover:shadow-2xl hover:shadow-orange-500/20'
+                }`}>
                   <CardHeader>
                     <CardTitle className="flex items-center text-white">
-                      <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-                      Overall Score
+                      {evaluation.scores.overall === 0 ? (
+                        <>
+                          <XCircle className="w-5 h-5 text-red-500 mr-2" />
+                          File Discarded
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                          Overall Score
+                        </>
+                      )}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="text-center">
-                      <div className="text-4xl font-bold text-orange-500 mb-2">
+                      <div className={`text-4xl font-bold mb-2 ${
+                        evaluation.scores.overall === 0 ? 'text-red-500' : 'text-orange-500'
+                      }`}>
                         {evaluation.scores.overall.toFixed(1)}/10
                       </div>
-                      <Progress value={evaluation.scores.overall * 10} className="w-full" />
+                      {evaluation.scores.overall === 0 ? (
+                        <div className="text-red-400 text-sm font-medium">
+                          Invalid file type detected
+                        </div>
+                      ) : (
+                        <Progress value={evaluation.scores.overall * 10} className="w-full" />
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -213,6 +246,97 @@ export default function ResultsPage({ evaluation }: ResultsPageProps) {
                   </div>
                 </CardContent>
               </Card>
+
+              {evaluation.templateValidation && evaluation.templateValidation.overallCompliance !== undefined && (
+                <Card className="mb-8 bg-gray-900/60 backdrop-blur-sm border-gray-700/50 hover:border-orange-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-orange-500/20 card-glow">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <CheckCircle className="w-5 h-5 text-blue-500 mr-2" />
+                      Template Compliance
+                    </CardTitle>
+                    <CardDescription className="text-gray-400">
+                      How well your presentation matches the provided template structure
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      {/* Overall Compliance Score */}
+                      <div className="text-center p-6 bg-gray-800/30 rounded-lg border border-gray-700">
+                        <div className="text-3xl font-bold text-blue-500 mb-2">
+                          {evaluation.templateValidation.overallCompliance.toFixed(1)}/10
+                        </div>
+                        <div className="text-gray-300 font-medium">Overall Template Compliance</div>
+                        <Progress value={evaluation.templateValidation.overallCompliance * 10} className="w-full mt-3" />
+                        
+                        {/* Visual indicator */}
+                        <div className="mt-3">
+                          {evaluation.templateValidation.overallCompliance >= 8 && (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-500/20 text-green-400">
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              Excellent Compliance
+                            </span>
+                          )}
+                          {evaluation.templateValidation.overallCompliance >= 6 && evaluation.templateValidation.overallCompliance < 8 && (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-500/20 text-yellow-400">
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              Good Compliance
+                            </span>
+                          )}
+                          {evaluation.templateValidation.overallCompliance < 6 && (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-500/20 text-red-400">
+                              <XCircle className="w-4 h-4 mr-1" />
+                              Needs Improvement
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Theme Match */}
+                      <div className="grid md:grid-cols-2 gap-6">
+                        <div className="p-4 bg-gray-800/30 rounded-lg border border-gray-700">
+                          <div className="flex justify-between items-center mb-3">
+                            <span className="font-medium text-white">Theme Match</span>
+                            <span className="text-sm text-gray-400">
+                              {evaluation.templateValidation.themeMatch.score}/10
+                            </span>
+                          </div>
+                          <Progress value={evaluation.templateValidation.themeMatch.score * 10} className="mb-3" />
+                          {evaluation.templateValidation.themeMatch.reasoning && (
+                            <p className="text-sm text-gray-300 leading-relaxed">
+                              {evaluation.templateValidation.themeMatch.reasoning}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Structure Adherence */}
+                        <div className="p-4 bg-gray-800/30 rounded-lg border border-gray-700">
+                          <div className="flex justify-between items-center mb-3">
+                            <span className="font-medium text-white">Structure Adherence</span>
+                            <span className="text-sm text-gray-400">
+                              {evaluation.templateValidation.structureAdherence.score}/10
+                            </span>
+                          </div>
+                          <Progress value={evaluation.templateValidation.structureAdherence.score * 10} className="mb-3" />
+                          {evaluation.templateValidation.structureAdherence.deviations && 
+                           evaluation.templateValidation.structureAdherence.deviations.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium text-gray-300">Structural Deviations:</p>
+                              <ul className="text-sm text-gray-400 space-y-1">
+                                {evaluation.templateValidation.structureAdherence.deviations.map((deviation, index) => (
+                                  <li key={index} className="flex items-start">
+                                    <span className="text-orange-400 mr-2">•</span>
+                                    <span>{deviation}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {evaluation.suggestions && evaluation.suggestions.length > 0 && (
                 <Card className="mb-8 bg-gray-900/60 backdrop-blur-sm border-gray-700/50 hover:border-orange-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-orange-500/20 card-glow">
@@ -301,16 +425,20 @@ export default function ResultsPage({ evaluation }: ResultsPageProps) {
               )}
 
               <div className="flex justify-center gap-4">
-                <Link href="/dashboard">
+                <Link href={evaluation.hackathonId ? `/dashboard/hackathon/results/${evaluation.hackathonId}` : '/dashboard'}>
                   <Button variant="outline" size="lg" className="border-white text-white hover:bg-white hover:text-black bg-gray-800/50">
                     <Home className="w-4 h-4 mr-2" />
-                    Go to Dashboard
+                    {evaluation.hackathonId ? 'Back to Hackathon Results' : 'Go to Dashboard'}
                   </Button>
                 </Link>
-                <Button onClick={handleDownloadReport} variant="orange" size="lg">
-                  <Download className="w-4 h-4 mr-2" />
-                  Download Full Report
-                </Button>
+                
+                {/* Only show download button for valid evaluations (not discarded) */}
+                {evaluation.scores.overall > 0 && (
+                  <Button onClick={handleDownloadReport} variant="orange" size="lg">
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Full Report
+                  </Button>
+                )}
               </div>
             </>
           )}

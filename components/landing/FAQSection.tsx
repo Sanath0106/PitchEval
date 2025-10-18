@@ -6,11 +6,11 @@ import { Plus } from 'lucide-react'
 const faqs = [
   {
     question: 'What file formats does PitchEval support?',
-    answer: 'PitchEval supports PDF files up to 10MB each. Our advanced AI technology analyzes PDF content with high accuracy, providing detailed feedback on your presentations.'
+    answer: 'PitchEval supports PDF files up to 10MB each. Our AI technology processes presentation content and provides detailed feedback on structure, messaging, and key evaluation criteria.'
   },
   {
-    question: 'How accurate is the AI evaluation?',
-    answer: 'Our AI evaluation system has a 95% accuracy rate, trained on thousands of pitch presentations. It evaluates four key criteria: feasibility, innovation, impact, and clarity, providing consistent and unbiased scoring.'
+    question: 'How does the AI evaluation work?',
+    answer: 'Our AI system analyzes your presentation across four key dimensions: feasibility, innovation, market impact, and clarity. It provides detailed scoring and actionable feedback based on proven pitch evaluation frameworks used by investors and judges.'
   },
   {
     question: 'Can I use PitchEval for hackathon judging?',
@@ -27,7 +27,10 @@ export default function FAQSection() {
 
   return (
     <section id="faq" className="py-32 px-4 relative">
-      <div className="container mx-auto max-w-4xl">
+      {/* Dot Grid Background */}
+      <div className="absolute inset-0 dot-grid"></div>
+      
+      <div className="container mx-auto max-w-4xl relative z-10">
         {/* Section Header */}
         <div className="text-center mb-20">
           <div className="inline-flex items-center px-4 py-2 rounded-full bg-orange-500/10 border border-orange-500/20 mb-8">

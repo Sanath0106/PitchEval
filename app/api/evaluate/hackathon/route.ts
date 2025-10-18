@@ -3,7 +3,10 @@ import { auth } from '@clerk/nextjs/server'
 import dbConnect from '../../../../lib/mongodb'
 import Hackathon from '../../../../lib/models/Hackathon'
 import Evaluation from '../../../../lib/models/Evaluation'
-import { evaluatePresentationFile } from '../../../../lib/ai/gemini'
+import TemplateAnalysis from '../../../../lib/models/TemplateAnalysis'
+import { addToQueue, QUEUES, HackathonEvaluationJob } from '../../../../lib/queue'
+import { analyzeTemplateStructure } from '../../../../lib/ai/templateAnalysis'
+import { v4 as uuidv4 } from 'uuid'
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,11 +23,69 @@ export async function POST(request: NextRequest) {
     const tracks = formData.get('tracks') as string
     const additionalInfo = formData.get('additionalInfo') as string
     const weights = JSON.parse(formData.get('weights') as string)
+
+    
+    // Handle template upload
+    const templateFile = formData.get('templateFile') as File | null
+    const templateAnalysisData = formData.get('templateAnalysis') as string | null
     
     const files = formData.getAll('files') as File[]
 
     if (!hackathonName || files.length === 0) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+
+    // Process template if provided
+    let templateAnalysisId: string | null = null
+    let parsedTemplateAnalysis = null
+    
+    if (templateFile && templateAnalysisData) {
+      try {
+        parsedTemplateAnalysis = JSON.parse(templateAnalysisData)
+        
+        // Create template analysis record
+        const templateAnalysis = new TemplateAnalysis({
+          hackathonId: '', // Will be set after hackathon is created
+          userId,
+          templateFileName: templateFile.name,
+          structure: parsedTemplateAnalysis.structure,
+          theme: parsedTemplateAnalysis.theme,
+          additionalContext: parsedTemplateAnalysis.additionalContext,
+          fingerprint: parsedTemplateAnalysis.fingerprint,
+        })
+        
+        await templateAnalysis.save()
+        templateAnalysisId = templateAnalysis._id.toString()
+      } catch (error) {
+        console.error('Failed to save template analysis:', error)
+        console.log(`⚠️ Continuing hackathon creation without template analysis for: ${hackathonName}`)
+        // Continue without template analysis if it fails - system remains functional
+      }
+    } else if (templateFile) {
+      // If template file is provided but no analysis, analyze it now
+      try {
+        const analysis = await analyzeTemplateStructure(templateFile, additionalInfo || undefined)
+        
+        const templateAnalysis = new TemplateAnalysis({
+          hackathonId: '', // Will be set after hackathon is created
+          userId,
+          templateFileName: templateFile.name,
+          structure: analysis.structure,
+          theme: analysis.theme,
+          additionalContext: analysis.additionalContext,
+          fingerprint: analysis.fingerprint,
+        })
+        
+        await templateAnalysis.save()
+        templateAnalysisId = templateAnalysis._id.toString()
+        parsedTemplateAnalysis = analysis
+        
+        console.log(`✅ Template analysis completed for hackathon: ${hackathonName}`)
+      } catch (error) {
+        console.error('Failed to analyze template:', error)
+        console.log(`⚠️ Continuing hackathon creation without template analysis for: ${hackathonName}`)
+        // Continue without template analysis if it fails - system remains functional
+      }
     }
 
     // Create hackathon record
@@ -35,25 +96,56 @@ export async function POST(request: NextRequest) {
       weights,
       additionalInfo,
       status: 'processing',
+      templateAnalysis: templateAnalysisId || undefined,
     })
 
     await hackathon.save()
+    
+    // Update template analysis with hackathon ID
+    if (templateAnalysisId) {
+      await TemplateAnalysis.findByIdAndUpdate(templateAnalysisId, {
+        hackathonId: hackathon._id.toString()
+      })
+    }
 
-    // Create evaluation records for each file
-    const evaluationPromises = files.map(async (file) => {
+    // Generate batch ID for tracking
+    const batchId = uuidv4()
+
+    // Create evaluation records and queue jobs for each file
+    const evaluationPromises = files.map(async (file, index) => {
       const evaluation = new Evaluation({
         userId,
         type: 'hackathon',
         fileName: file.name,
         domain: 'hackathon',
         hackathonId: hackathon._id.toString(),
-        status: 'processing',
+        status: 'queued', // Changed from 'processing' to 'queued'
       })
       
       await evaluation.save()
       
-      // Process file in background
-      processHackathonFileAsync(evaluation._id.toString(), file, weights)
+      // Convert file to buffer for queue
+      const fileBuffer = Buffer.from(await file.arrayBuffer())
+      
+      // Create job for queue
+      const job: HackathonEvaluationJob = {
+        type: 'hackathon',
+        evaluationId: evaluation._id.toString(),
+        hackathonId: hackathon._id.toString(),
+        userId,
+        fileName: file.name,
+        fileBuffer: fileBuffer.toString('base64'),
+        weights,
+        batchId,
+
+        templateAnalysisId: templateAnalysisId || undefined,
+        templateAnalysis: parsedTemplateAnalysis || undefined,
+        includeTemplateValidation: templateAnalysisId ? true : false
+      }
+
+      // Add to queue with priority based on file order (first files get higher priority)
+      const priority = Math.max(1, 10 - index) // Priority 10 to 1
+      await addToQueue(QUEUES.HACKATHON_EVALUATION, job, priority)
       
       return evaluation._id.toString()
     })
@@ -66,7 +158,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       hackathonId: hackathon._id.toString(),
-      message: 'Files uploaded successfully. Processing...' 
+      batchId,
+      totalFiles: files.length,
+      message: `${files.length} files uploaded successfully. Added to processing queue...`,
+      status: 'queued'
     })
 
   } catch (error) {
@@ -74,99 +169,5 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function processHackathonFileAsync(evaluationId: string, file: File, weights: any) {
-  try {
-    await dbConnect()
-    
-    // Get evaluation to find hackathon details
-    const evaluation = await Evaluation.findById(evaluationId)
-    if (!evaluation) {
-      throw new Error('Evaluation not found')
-    }
-    
-    // Get hackathon details including tracks
-    const hackathon = await Hackathon.findById(evaluation.hackathonId)
-    if (!hackathon) {
-      throw new Error('Hackathon not found')
-    }
-    
-    // Process file with track information
-    const aiResult = await evaluatePresentationFile(file, 'hackathon', undefined, hackathon.tracks)
-    
-    // Calculate weighted overall score
-    const weightedScore = (
-      (aiResult.scores.innovation * weights.innovation / 100) +
-      (aiResult.scores.feasibility * weights.feasibility / 100) +
-      (aiResult.scores.impact * weights.impact / 100) +
-      (aiResult.scores.clarity * weights.clarity / 100)
-    )
-    
-    // Update evaluation with results
-    const updateData: any = {
-      scores: {
-        ...aiResult.scores,
-        overall: weightedScore,
-      },
-      suggestions: aiResult.suggestions,
-      status: 'completed',
-      updatedAt: new Date(),
-    }
-
-    // Add track relevance if available
-    if (aiResult.trackRelevance) {
-      updateData.trackRelevance = aiResult.trackRelevance
-    }
-
-    await Evaluation.findByIdAndUpdate(evaluationId, updateData)
-
-    // Check if all evaluations for this hackathon are complete
-    const updatedEvaluation = await Evaluation.findById(evaluationId)
-    if (updatedEvaluation) {
-      await updateHackathonRankings(updatedEvaluation.hackathonId)
-    }
-
-  } catch (error) {
-    // Update evaluation with error status
-    await Evaluation.findByIdAndUpdate(evaluationId, {
-      status: 'failed',
-      updatedAt: new Date(),
-    })
-  }
-}
-
-async function updateHackathonRankings(hackathonId: string) {
-  try {
-    // Get all completed evaluations for this hackathon
-    const evaluations = await Evaluation.find({
-      hackathonId,
-      status: 'completed'
-    }).sort({ 'scores.overall': -1 })
-
-    // Update rankings
-    const updatePromises = evaluations.map((evaluation, index) => {
-      return Evaluation.findByIdAndUpdate(evaluation._id, {
-        rank: index + 1,
-        updatedAt: new Date(),
-      })
-    })
-
-    await Promise.all(updatePromises)
-
-    // Check if all evaluations are complete and update hackathon status
-    const totalEvaluations = await Evaluation.countDocuments({ hackathonId })
-    const completedEvaluations = await Evaluation.countDocuments({ 
-      hackathonId, 
-      status: 'completed' 
-    })
-
-    if (totalEvaluations === completedEvaluations) {
-      await Hackathon.findByIdAndUpdate(hackathonId, {
-        status: 'completed',
-        updatedAt: new Date(),
-      })
-    }
-
-  } catch (error) {
-    // Silently handle ranking update errors
-  }
-}
+// Note: File processing is now handled by the queue worker
+// See lib/processors/evaluationProcessor.ts for the actual processing logic
