@@ -33,7 +33,7 @@ export async function GET(
     return new NextResponse(pdfBuffer as BodyInit, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${evaluation.fileName}_report.pdf"`,
+        'Content-Disposition': `attachment; filename="${evaluation.fileName.replace(/\.[^/.]+$/, '')}_PitchEval_report.pdf"`,
       },
     })
 

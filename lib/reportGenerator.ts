@@ -3,6 +3,11 @@ import jsPDF from 'jspdf'
 interface EvaluationData {
   fileName: string
   domain: string
+  detectedDomain?: {
+    category: string
+    confidence: number
+    reason: string
+  }
   scores: {
     feasibility: number
     innovation: number
@@ -106,9 +111,14 @@ export async function generatePDFReport(evaluation: EvaluationData): Promise<Buf
   doc.text('PRESENTATION DETAILS', margin, yPos)
   yPos += 15
 
+  // Get the display domain - use AI detected if available, otherwise fallback
+  const displayDomain = evaluation.detectedDomain?.category && evaluation.detectedDomain.category !== 'auto-detect' 
+    ? evaluation.detectedDomain.category 
+    : (evaluation.domain === 'auto-detect' ? 'Multi-Domain Project' : evaluation.domain)
+
   const details = [
     ['File Name:', evaluation.fileName],
-    ['Domain:', evaluation.domain.toUpperCase()],
+    ['Project Theme:', displayDomain.toUpperCase()],
     ['Analysis Date:', new Date(evaluation.createdAt).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -127,6 +137,15 @@ export async function generatePDFReport(evaluation: EvaluationData): Promise<Buf
     doc.text(value, margin + 50, yPos)
     yPos += 12
   })
+
+  // Add AI detection confidence if available
+  if (evaluation.detectedDomain?.category && evaluation.detectedDomain.category !== 'auto-detect') {
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'italic')
+    doc.setTextColor(...mediumGray)
+    doc.text(`AI Detected with ${evaluation.detectedDomain.confidence}/10 confidence`, margin + 50, yPos)
+    yPos += 8
+  }
 
   yPos += 10
 

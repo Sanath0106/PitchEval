@@ -223,7 +223,7 @@ export default function HackathonResultsPage() {
       <main className="relative z-10 container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
           <div className="mb-8 text-center">
-            <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-white via-blue-200 to-white bg-clip-text text-transparent animate-pulse">
+            <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-white via-blue-200 to-white bg-clip-text text-transparent">
               {hackathon.name}
             </h1>
             <p className="text-gray-400">Hackathon Evaluation Results</p>
@@ -395,12 +395,32 @@ export default function HackathonResultsPage() {
                             <div className="text-xs text-gray-400">Overall Score</div>
                           </div>
                           
-                          <Link href={`/dashboard/results/${evaluation._id}`}>
-                            <Button size="sm" variant="orange" className="bg-orange-500 hover:bg-orange-600 text-white flex-shrink-0">
-                              <span className="hidden sm:inline">View Details</span>
-                              <span className="sm:hidden">View</span>
-                            </Button>
-                          </Link>
+                          <Button 
+                            size="sm" 
+                            variant="orange" 
+                            className="bg-orange-500 hover:bg-orange-600 text-white flex-shrink-0"
+                            onClick={async () => {
+                              try {
+                                const response = await fetch(`/api/judge-reports/${evaluation._id}`)
+                                if (response.ok) {
+                                  const blob = await response.blob()
+                                  const url = window.URL.createObjectURL(blob)
+                                  const a = document.createElement('a')
+                                  a.href = url
+                                  a.download = `${evaluation.fileName.replace(/\.[^/.]+$/, '')}_Judge_Report.pdf`
+                                  document.body.appendChild(a)
+                                  a.click()
+                                  document.body.removeChild(a)
+                                  window.URL.revokeObjectURL(url)
+                                }
+                              } catch (error) {
+                                console.error('Download failed:', error)
+                              }
+                            }}
+                          >
+                            <span className="hidden sm:inline">Judge Report</span>
+                            <span className="sm:hidden">Report</span>
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -413,7 +433,7 @@ export default function HackathonResultsPage() {
           {discardedEvaluations.length > 0 && (
             <Card className="mb-8 bg-gray-900/50 border-red-700/30">
               <CardHeader>
-                <CardTitle className="text-red-400">🚫 Discarded Submissions</CardTitle>
+                <CardTitle className="text-red-400">Discarded Submissions</CardTitle>
                 <CardDescription className="text-gray-400">
                   Presentations that don't match the hackathon tracks
                 </CardDescription>
@@ -440,12 +460,17 @@ export default function HackathonResultsPage() {
                           <div className="text-xs text-gray-400">Track Mismatch</div>
                         </div>
                         
-                        <Link href={`/dashboard/results/${evaluation._id}`}>
-                          <Button size="sm" variant="outline" className="border-red-500 text-red-400 hover:bg-red-500/20 bg-red-500/10 flex-shrink-0">
-                            <span className="hidden sm:inline">View Details</span>
-                            <span className="sm:hidden">View</span>
-                          </Button>
-                        </Link>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="border-red-500 text-red-400 hover:bg-red-500/20 bg-red-500/10 flex-shrink-0"
+                          onClick={() => {
+                            alert(`Disqualification Reason:\n\n${evaluation.trackRelevance?.reason || evaluation.suggestions?.[0] || 'Does not match hackathon tracks or requirements'}`)
+                          }}
+                        >
+                          <span className="hidden sm:inline">View Reason</span>
+                          <span className="sm:hidden">Why</span>
+                        </Button>
                       </div>
                     </div>
                   ))}

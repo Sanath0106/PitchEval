@@ -18,80 +18,50 @@ export async function processPersonalEvaluation(job: PersonalEvaluationJob): Pro
 
     // Convert base64 back to file buffer
     const fileBuffer = Buffer.from(job.fileBuffer, 'base64')
-    
+
     // Create File object for AI processing
     const file = new File([fileBuffer], job.fileName, { type: 'application/pdf' })
-    
-    // Pre-check for invalid file types based on filename
-    const invalidFilePatterns = [
-      /transcript|marksheet|grade|semester|result/i,
-      /resume|cv|curriculum/i,
-      /certificate|diploma|degree/i,
-      /id|identity|passport|aadhar|aadhaar/i,
-      /personal|academic|education/i
-    ]
-    
-    const isInvalidFile = invalidFilePatterns.some(pattern => 
-      pattern.test(job.fileName) || pattern.test(job.description || '')
-    )
-    
-    if (isInvalidFile) {
-      console.log(`Rejecting invalid file: ${job.fileName}`)
-      
-      // Update evaluation with rejection
-      await Evaluation.findByIdAndUpdate(job.evaluationId, {
-        scores: {
-          feasibility: 0,
-          innovation: 0,
-          impact: 0,
-          clarity: 0,
-          overall: 0
-        },
-        suggestions: [
-          "INVALID FILE: This appears to be a personal/academic document rather than a project pitch presentation. Please upload a presentation that introduces a project, startup idea, or product proposal."
-        ],
-        status: 'completed',
-        updatedAt: new Date(),
-      })
-      
-      console.log(`Personal evaluation rejected: ${job.fileName}`)
-      return
-    }
-    
+
+    // No filename-based rejection - let AI handle everything
+
     // Generate file hash for caching
     const fileHash = generateFileHash(fileBuffer, job.fileName)
-    
+
     console.log(`Processing personal evaluation: ${job.fileName}`)
-    
+
     // Check Redis cache first
     const cachedResult = await getCachedEvaluation(fileHash, job.domain)
-    
+
     let aiResult
     if (cachedResult) {
       console.log(`Cache HIT for personal: ${job.fileName}`)
       aiResult = {
         scores: cachedResult.scores,
-        suggestions: cachedResult.suggestions
+        suggestions: cachedResult.suggestions,
+        detectedDomain: cachedResult.detectedDomain
       }
     } else {
       console.log(`Cache MISS for personal: ${job.fileName} - Processing with AI`)
       // Process with AI
       aiResult = await evaluatePresentationFile(file, job.domain, job.description)
-      
+
       // Cache the result
       await setCachedEvaluation(fileHash, job.domain, {
         scores: aiResult.scores,
         suggestions: aiResult.suggestions,
-        domain: job.domain,
+        domain: aiResult.detectedDomain?.category || job.domain,
+        detectedDomain: aiResult.detectedDomain,
         fileName: job.fileName,
         createdAt: new Date().toISOString()
       })
     }
-    
+
     // Update evaluation in database
     await Evaluation.findByIdAndUpdate(job.evaluationId, {
       scores: aiResult.scores,
       suggestions: aiResult.suggestions,
+      domain: aiResult.detectedDomain?.category || job.domain, // Use AI-detected domain if available
+      detectedDomain: aiResult.detectedDomain, // Store full detection info
       status: 'completed',
       updatedAt: new Date(),
     })
@@ -100,13 +70,13 @@ export async function processPersonalEvaluation(job: PersonalEvaluationJob): Pro
 
   } catch (error) {
     console.error('Personal evaluation processing failed:', error)
-    
+
     // Update evaluation with error status
     await Evaluation.findByIdAndUpdate(job.evaluationId, {
       status: 'failed',
       updatedAt: new Date(),
     })
-    
+
     throw error
   }
 }
@@ -124,21 +94,21 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
 
     // Convert base64 back to file buffer
     const fileBuffer = Buffer.from(job.fileBuffer, 'base64')
-    
+
     // Create File object for AI processing
     const file = new File([fileBuffer], job.fileName, { type: 'application/pdf' })
-    
+
     // Get hackathon details
     const hackathon = await Hackathon.findById(job.hackathonId)
     if (!hackathon) {
       throw new Error('Hackathon not found')
     }
-    
+
     // Generate file hash for caching
     const fileHash = generateFileHash(fileBuffer, job.fileName)
-    
+
     console.log(`Processing hackathon evaluation: ${job.fileName}`)
-    
+
     // Log template validation status for debugging
     if (job.templateAnalysis) {
       console.log(`Job includes template analysis data - validation enabled`)
@@ -147,13 +117,13 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
     } else {
       console.log(`No template analysis available - standard evaluation only`)
     }
-    
+
     // Check Redis cache first
     const cachedResult = await getCachedEvaluation(fileHash, 'hackathon')
-    
+
     let aiResult
     let templateValidation = null
-    
+
     if (cachedResult) {
       console.log(`Cache HIT for hackathon: ${job.fileName}`)
       aiResult = {
@@ -161,10 +131,10 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
         suggestions: cachedResult.suggestions,
         trackRelevance: (cachedResult as any).trackRelevance
       }
-      
+
       // Retrieve cached template validation if available
       templateValidation = (cachedResult as any).templateValidation || null
-      
+
       if (templateValidation) {
         console.log(`Using cached template validation for: ${job.fileName} - Compliance: ${templateValidation.overallCompliance}/10`)
       }
@@ -172,11 +142,11 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
       console.log(`Cache MISS for hackathon: ${job.fileName} - Processing with AI`)
       // Process with AI including track information and template
       aiResult = await evaluatePresentationFile(file, 'hackathon', undefined, hackathon.tracks)
-      
+
       // Perform template validation if template analysis exists and validation is requested
       if (job.templateAnalysis && (job.includeTemplateValidation !== false)) {
         const { validateSubmissionAgainstTemplate, shouldSkipTemplateValidation, logValidationError } = await import('../ai/validationEngine')
-        
+
         // Check if validation should be skipped
         if (shouldSkipTemplateValidation(job.templateAnalysis)) {
           console.log(`Skipping template validation for ${job.fileName}: insufficient template data`)
@@ -184,7 +154,7 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
         } else {
           try {
             console.log(`Performing template validation for: ${job.fileName}`)
-            
+
             // Use template analysis data from job (more efficient than database lookup)
             const templateAnalysisResult = {
               structure: job.templateAnalysis.structure,
@@ -192,19 +162,19 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
               fingerprint: job.templateAnalysis.fingerprint,
               additionalContext: job.templateAnalysis.additionalContext
             }
-            
+
             // Combine hackathon additional info with template context for comprehensive validation
             const combinedContext = [
               hackathon.additionalInfo,
               job.templateAnalysis.additionalContext
             ].filter(Boolean).join('\n\n')
-            
+
             const validationResult = await validateSubmissionAgainstTemplate(
-              file, 
+              file,
               templateAnalysisResult,
               combinedContext || undefined
             )
-            
+
             templateValidation = {
               themeMatch: {
                 score: validationResult.themeMatch.score,
@@ -216,12 +186,12 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
               },
               overallCompliance: validationResult.overallCompliance
             }
-            
+
             console.log(`Template validation completed for: ${job.fileName} - Compliance: ${validationResult.overallCompliance}/10`)
-            
+
           } catch (validationError) {
             logValidationError(job.fileName, validationError as Error, 'primary validation')
-            
+
             // Continue with standard evaluation - system remains functional
             console.log(`Continuing with standard evaluation for ${job.fileName} - template validation will be skipped`)
             templateValidation = null
@@ -233,28 +203,28 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
           console.log(`Fetching template analysis from database for: ${job.fileName}`)
           const TemplateAnalysis = (await import('../models/TemplateAnalysis')).default
           const templateAnalysisData = await TemplateAnalysis.findById(hackathon.templateAnalysis)
-          
+
           if (templateAnalysisData) {
             const { validateSubmissionAgainstTemplate } = await import('../ai/validationEngine')
-            
+
             const templateAnalysisResult = {
               structure: templateAnalysisData.structure,
               theme: templateAnalysisData.theme,
               fingerprint: templateAnalysisData.fingerprint,
               additionalContext: templateAnalysisData.additionalContext
             }
-            
+
             const combinedContext = [
               hackathon.additionalInfo,
               templateAnalysisData.additionalContext
             ].filter(Boolean).join('\n\n')
-            
+
             const validationResult = await validateSubmissionAgainstTemplate(
-              file, 
+              file,
               templateAnalysisResult,
               combinedContext || undefined
             )
-            
+
             templateValidation = {
               themeMatch: {
                 score: validationResult.themeMatch.score,
@@ -266,7 +236,7 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
               },
               overallCompliance: validationResult.overallCompliance
             }
-            
+
             console.log(`Template validation completed (fallback) for: ${job.fileName} - Compliance: ${validationResult.overallCompliance}/10`)
           }
         } catch (validationError) {
@@ -278,7 +248,7 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
       } else {
         console.log(`No template analysis available for hackathon ${job.hackathonId}, skipping template validation`)
       }
-      
+
       // Cache the result including template validation
       const cacheData: any = {
         scores: aiResult.scores,
@@ -287,20 +257,20 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
         fileName: job.fileName,
         createdAt: new Date().toISOString()
       }
-      
+
       // Add track relevance if available
       if (aiResult.trackRelevance) {
         cacheData.trackRelevance = aiResult.trackRelevance
       }
-      
+
       // Add template validation if available
       if (templateValidation) {
         cacheData.templateValidation = templateValidation
       }
-      
+
       await setCachedEvaluation(fileHash, 'hackathon', cacheData)
     }
-    
+
     // Calculate weighted overall score
     const weightedScore = (
       (aiResult.scores.innovation * job.weights.innovation / 100) +
@@ -308,7 +278,7 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
       (aiResult.scores.impact * job.weights.impact / 100) +
       (aiResult.scores.clarity * job.weights.clarity / 100)
     )
-    
+
     // Update evaluation with results
     const updateData: any = {
       scores: {
@@ -339,13 +309,13 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
 
   } catch (error) {
     console.error('Hackathon evaluation processing failed:', error)
-    
+
     // Update evaluation with error status
     await Evaluation.findByIdAndUpdate(job.evaluationId, {
       status: 'failed',
       updatedAt: new Date(),
     })
-    
+
     throw error
   }
 }
@@ -371,9 +341,9 @@ async function updateHackathonRankings(hackathonId: string): Promise<void> {
 
     // Check if all evaluations are complete and update hackathon status
     const totalEvaluations = await Evaluation.countDocuments({ hackathonId })
-    const completedEvaluations = await Evaluation.countDocuments({ 
-      hackathonId, 
-      status: 'completed' 
+    const completedEvaluations = await Evaluation.countDocuments({
+      hackathonId,
+      status: 'completed'
     })
 
     if (totalEvaluations === completedEvaluations) {
@@ -381,7 +351,7 @@ async function updateHackathonRankings(hackathonId: string): Promise<void> {
         status: 'completed',
         updatedAt: new Date(),
       })
-      
+
       console.log(`Hackathon ${hackathonId} completed with rankings updated`)
     }
 

@@ -64,31 +64,65 @@ export async function POST(request: NextRequest) {
       description
     }
 
-    try {
-      await addToQueue(QUEUES.PERSONAL_EVALUATION, job, 8) // High priority for personal uploads
+    // Smart processing strategy: Queue first, fallback to direct
+    const useQueue = process.env.RABBITMQ_URL && !process.env.DISABLE_QUEUE
+    
+    if (useQueue) {
+      try {
+        await addToQueue(QUEUES.PERSONAL_EVALUATION, job, 8)
+        
+        // Trigger queue processing (event-driven, non-blocking)
+        const triggerUrl = new URL('/api/queue/trigger', request.url)
+        fetch(triggerUrl.toString(), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ 
+            queueName: QUEUES.PERSONAL_EVALUATION,
+            maxJobs: 5,
+            userId: userId // Pass userId for internal auth
+          })
+        }).catch(error => {
+          console.error('Failed to trigger queue processing:', error)
+        })
 
-      return NextResponse.json({ 
-        evaluationId: evaluation._id.toString(),
-        message: 'File uploaded successfully. Added to processing queue...',
-        status: 'queued'
-      })
-    } catch (queueError) {
-      console.log('Queue not available, processing directly:', queueError)
-      
-      // Fallback: Process directly without queue
-      const { processPersonalEvaluation } = await import('../../../../lib/processors/evaluationProcessor')
-      
-      // Process in background (don't await)
-      processPersonalEvaluation(job).catch(error => {
-        console.error('Direct processing failed:', error)
-      })
-
-      return NextResponse.json({ 
-        evaluationId: evaluation._id.toString(),
-        message: 'File uploaded successfully. Processing started...',
-        status: 'processing'
-      })
+        return NextResponse.json({ 
+          evaluationId: evaluation._id.toString(),
+          message: 'File uploaded successfully. Added to processing queue...',
+          status: 'queued'
+        })
+        
+      } catch (queueError) {
+        // Queue unavailable, using direct processing
+      }
     }
+    
+    // Fallback: Direct processing (for Vercel or when queue unavailable)
+    // Direct processing mode
+    const { processPersonalEvaluation } = await import('../../../../lib/processors/evaluationProcessor')
+    
+    // Process in background (don't await to avoid timeout)
+    processPersonalEvaluation(job).catch(error => {
+      console.error('Direct processing failed:', error)
+      // Update evaluation status to failed
+      import('../../../../lib/mongodb').then(({ default: dbConnect }) => {
+        dbConnect().then(() => {
+          import('../../../../lib/models/Evaluation').then(({ default: Evaluation }) => {
+            Evaluation.findByIdAndUpdate(job.evaluationId, {
+              status: 'failed',
+              updatedAt: new Date()
+            }).catch(console.error)
+          })
+        })
+      })
+    })
+
+    return NextResponse.json({ 
+      evaluationId: evaluation._id.toString(),
+      message: 'File uploaded successfully. Processing started...',
+      status: 'processing'
+    })
 
   } catch (error) {
     console.error('Personal evaluation error:', error)

@@ -23,6 +23,11 @@ interface EvaluationData {
     overall: number
   }
   suggestions?: string[]
+  detectedDomain?: {
+    category: string
+    confidence: number
+    reason: string
+  }
   templateValidation?: {
     themeMatch: {
       score: number
@@ -50,7 +55,7 @@ export default function ResultsPage({ evaluation }: ResultsPageProps) {
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `${evaluation.fileName}_evaluation_report.pdf`
+        a.download = `${evaluation.fileName.replace(/\.[^/.]+$/, '')}_PitchEval_report.pdf`
         document.body.appendChild(a)
         a.click()
         window.URL.revokeObjectURL(url)
@@ -113,7 +118,7 @@ export default function ResultsPage({ evaluation }: ResultsPageProps) {
       <main className="relative z-10 container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="mb-8 text-center">
-            <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-white via-orange-200 to-white bg-clip-text text-transparent animate-pulse">
+            <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-white via-orange-200 to-white bg-clip-text text-transparent">
               Evaluation Results
             </h1>
             <p className="text-gray-400">{evaluation.fileName}</p>
@@ -149,7 +154,7 @@ export default function ResultsPage({ evaluation }: ResultsPageProps) {
                       {evaluation.scores.overall === 0 ? (
                         <>
                           <XCircle className="w-5 h-5 text-red-500 mr-2" />
-                          File Discarded
+                          {evaluation.suggestions?.[0]?.includes('DOMAIN MISMATCH') ? 'Domain Mismatch' : 'File Discarded'}
                         </>
                       ) : (
                         <>
@@ -168,7 +173,10 @@ export default function ResultsPage({ evaluation }: ResultsPageProps) {
                       </div>
                       {evaluation.scores.overall === 0 ? (
                         <div className="text-red-400 text-sm font-medium">
-                          Invalid file type detected
+                          {evaluation.suggestions?.[0]?.includes('DOMAIN MISMATCH') 
+                            ? 'Project domain doesn\'t match selection' 
+                            : 'Invalid file type detected'
+                          }
                         </div>
                       ) : (
                         <Progress value={evaluation.scores.overall * 10} className="w-full" />
@@ -182,9 +190,32 @@ export default function ResultsPage({ evaluation }: ResultsPageProps) {
                     <CardTitle className="text-white">Project Details</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <div className="text-gray-300">
-                        <span className="font-medium text-white">Domain:</span> {evaluation.domain}
+                        <span className="font-medium text-white">Project Theme:</span>
+                        <div className="mt-1">
+                          <div className="flex items-center space-x-2">
+                            {evaluation.detectedDomain?.category && evaluation.detectedDomain.category !== 'auto-detect' ? (
+                              <>
+                                <span className="px-3 py-1 bg-gradient-to-r from-orange-500/20 to-orange-400/20 text-orange-300 rounded-md text-sm font-medium border border-orange-500/30">
+                                  {evaluation.detectedDomain.category}
+                                </span>
+                                <span className="text-xs text-gray-400">
+                                  AI Detected • {evaluation.detectedDomain.confidence}/10 confidence
+                                </span>
+                              </>
+                            ) : (
+                              <span className="px-3 py-1 bg-gradient-to-r from-gray-500/20 to-gray-400/20 text-gray-300 rounded-md text-sm font-medium border border-gray-500/30">
+                                {evaluation.domain === 'auto-detect' ? 'Multi-Domain Project' : evaluation.domain}
+                              </span>
+                            )}
+                          </div>
+                          {evaluation.detectedDomain?.reason && evaluation.detectedDomain.category !== 'auto-detect' && (
+                            <p className="text-xs text-gray-400 mt-1 italic">
+                              "{evaluation.detectedDomain.reason}"
+                            </p>
+                          )}
+                        </div>
                       </div>
                       <div className="text-gray-300">
                         <span className="font-medium text-white">Evaluated:</span>{' '}
@@ -348,7 +379,36 @@ export default function ResultsPage({ evaluation }: ResultsPageProps) {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {evaluation.suggestions.map((suggestion, index) => {
+                      {(() => {
+                        // Sort suggestions by priority: IMPROVE first, then ADD, then REMOVE
+                        const sortedSuggestions = [...evaluation.suggestions].sort((a, b) => {
+                          const getOrder = (text: string) => {
+                            if (text.startsWith('WHAT TO IMPROVE:')) return 1
+                            if (text.startsWith('WHAT TO ADD:')) return 2
+                            if (text.startsWith('WHAT TO REMOVE:')) return 3
+                            return 4
+                          }
+                          return getOrder(a) - getOrder(b)
+                        })
+                        
+                        return sortedSuggestions.map((suggestion, index) => {
+                          // Check if this is the start of a new suggestion type
+                          const currentType = (() => {
+                            if (suggestion.startsWith('WHAT TO IMPROVE:')) return 'IMPROVE'
+                            if (suggestion.startsWith('WHAT TO ADD:')) return 'ADD'
+                            if (suggestion.startsWith('WHAT TO REMOVE:')) return 'REMOVE'
+                            return 'OTHER'
+                          })()
+                          
+                          const prevSuggestion = index > 0 ? sortedSuggestions[index - 1] : null
+                          const prevType = prevSuggestion ? (() => {
+                            if (prevSuggestion.startsWith('WHAT TO IMPROVE:')) return 'IMPROVE'
+                            if (prevSuggestion.startsWith('WHAT TO ADD:')) return 'ADD'
+                            if (prevSuggestion.startsWith('WHAT TO REMOVE:')) return 'REMOVE'
+                            return 'OTHER'
+                          })() : null
+                          
+                          const isNewSection = prevType && prevType !== currentType
                         const getSuggestionType = (text: string) => {
                           if (text.startsWith('WHAT TO REMOVE:')) return 'critical'
                           if (text.startsWith('WHAT TO IMPROVE:')) return 'warning'
@@ -359,31 +419,31 @@ export default function ResultsPage({ evaluation }: ResultsPageProps) {
                         const suggestionType = getSuggestionType(suggestion)
                         const typeConfig = {
                           critical: {
-                            bgColor: 'bg-gray-800/30',
-                            borderColor: 'border-gray-600',
-                            iconBg: 'bg-gray-700',
-                            iconColor: 'text-white',
+                            bgColor: 'bg-red-900/20',
+                            borderColor: 'border-red-500/30',
+                            iconBg: 'bg-red-500/20',
+                            iconColor: 'text-red-400',
                             textColor: 'text-gray-100',
-                            label: 'CRITICAL',
-                            labelBg: 'bg-gray-700'
+                            label: 'REMOVE',
+                            labelBg: 'bg-red-500/20'
                           },
                           warning: {
-                            bgColor: 'bg-gray-800/30',
-                            borderColor: 'border-gray-600',
-                            iconBg: 'bg-gray-700',
-                            iconColor: 'text-white',
+                            bgColor: 'bg-yellow-900/20',
+                            borderColor: 'border-yellow-500/30',
+                            iconBg: 'bg-yellow-500/20',
+                            iconColor: 'text-yellow-400',
                             textColor: 'text-gray-100',
                             label: 'IMPROVE',
-                            labelBg: 'bg-gray-700'
+                            labelBg: 'bg-yellow-500/20'
                           },
                           success: {
-                            bgColor: 'bg-gray-800/30',
-                            borderColor: 'border-gray-600',
-                            iconBg: 'bg-gray-700',
-                            iconColor: 'text-white',
+                            bgColor: 'bg-green-900/20',
+                            borderColor: 'border-green-500/30',
+                            iconBg: 'bg-green-500/20',
+                            iconColor: 'text-green-400',
                             textColor: 'text-gray-100',
                             label: 'ADD',
-                            labelBg: 'bg-gray-700'
+                            labelBg: 'bg-green-500/20'
                           },
                           info: {
                             bgColor: 'bg-gray-800/30',
@@ -399,10 +459,19 @@ export default function ResultsPage({ evaluation }: ResultsPageProps) {
                         const config = typeConfig[suggestionType]
                         
                         return (
-                          <div 
-                            key={index} 
-                            className={`suggestion-card suggestion-${suggestionType} p-6 rounded-xl border-2 ${config.bgColor} ${config.borderColor}`}
-                          >
+                          <div key={index}>
+                            {isNewSection && (
+                              <div className="flex items-center my-6">
+                                <div className="flex-1 h-px bg-gray-700"></div>
+                                <div className="px-4 text-xs text-gray-400 font-medium">
+                                  {currentType} SUGGESTIONS
+                                </div>
+                                <div className="flex-1 h-px bg-gray-700"></div>
+                              </div>
+                            )}
+                            <div 
+                              className={`suggestion-card suggestion-${suggestionType} p-6 rounded-xl border-2 ${config.bgColor} ${config.borderColor}`}
+                            >
                             <div className="flex items-start space-x-5">
                               <div className={`w-10 h-10 ${config.iconBg} rounded-full flex items-center justify-center flex-shrink-0`}>
                                 <span className={`${config.iconColor} text-lg font-bold`}>{index + 1}</span>
@@ -417,8 +486,10 @@ export default function ResultsPage({ evaluation }: ResultsPageProps) {
                               </div>
                             </div>
                           </div>
+                          </div>
                         )
-                      })}
+                        })
+                      })()}
                     </div>
                   </CardContent>
                 </Card>

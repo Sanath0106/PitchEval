@@ -9,9 +9,18 @@ export async function initializeServices(): Promise<void> {
   }
 
   try {
-    // Start queue worker if enabled
-    if (process.env.START_QUEUE_WORKER === 'true' || process.env.NODE_ENV === 'production') {
-      await queueWorker.start()
+    // Check if we're in a serverless environment
+    const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+    
+    if (isServerless) {
+      // Serverless environment - no queue workers needed
+    } else {
+      // Only start traditional queue workers if explicitly enabled
+      if (process.env.START_QUEUE_WORKER === 'true') {
+        console.log('Starting traditional queue workers')
+        await queueWorker.start()
+      }
+      // Event-driven processing - no logs needed
     }
 
     isInitialized = true
@@ -25,10 +34,13 @@ export async function initializeServices(): Promise<void> {
 
 // Auto-initialize in production or when explicitly enabled
 if (typeof window === 'undefined') { // Server-side only
-  if (process.env.NODE_ENV === 'production' || process.env.START_QUEUE_WORKER === 'true') {
+  const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+  
+  if (!isServerless && process.env.START_QUEUE_WORKER === 'true') {
     // Use setTimeout to avoid blocking the initial import
     setTimeout(() => {
       initializeServices().catch(console.error)
     }, 1000) // 1 second delay to let Next.js fully boot
   }
+  // Event-driven processing - silent initialization
 }

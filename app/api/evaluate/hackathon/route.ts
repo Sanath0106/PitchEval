@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
         includeTemplateValidation: templateAnalysisId ? true : false
       }
 
-      // Add to queue with priority based on file order (first files get higher priority)
+      // Add to event-driven queue system
       const priority = Math.max(1, 10 - index) // Priority 10 to 1
       await addToQueue(QUEUES.HACKATHON_EVALUATION, job, priority)
       
@@ -155,6 +155,22 @@ export async function POST(request: NextRequest) {
     // Update hackathon with evaluation IDs
     hackathon.evaluations = evaluationIds
     await hackathon.save()
+
+    // Trigger bulk queue processing (event-driven)
+    const triggerUrl = new URL('/api/queue/trigger', request.url)
+    fetch(triggerUrl.toString(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ 
+        queueName: QUEUES.HACKATHON_EVALUATION,
+        maxJobs: Math.min(files.length, 10), // Process up to 10 at a time
+        userId: userId // Pass userId for internal auth
+      })
+    }).catch(error => {
+      console.error('Failed to trigger bulk queue processing:', error)
+    })
 
     return NextResponse.json({ 
       hackathonId: hackathon._id.toString(),

@@ -7,7 +7,9 @@
         "build": "next build",
         "start": "next start",
         "lint": "next lint",
-        "type-check": "tsc --noEmit"
+        "type-check": "tsc --noEmit",
+        "cleanup": "node scripts/cleanup-data.js",
+        "cleanup:selective": "node scripts/selective-cleanup.js"
     },
     "dependencies": {
         "@clerk/nextjs": "^5.7.1",

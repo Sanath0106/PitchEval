@@ -14,6 +14,11 @@ export interface CachedEvaluation {
   fileName: string
   createdAt: string
   cacheTimestamp: string
+  detectedDomain?: {
+    category: string
+    confidence: number
+    reason: string
+  }
 }
 
 // Generate cache key from file content

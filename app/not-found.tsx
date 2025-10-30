@@ -11,19 +11,19 @@ export default function NotFound() {
   const [trollLevel, setTrollLevel] = useState(0)
 
   const trollMessages = [
-    <>Lost your way? <span className="emoji">🤔</span></>,
-    <>Just like you lost your last hackathon? <span className="emoji">😏</span></>,
-    <>404: Page not found. Unlike your winning strategy! <span className="emoji">🏆</span></>,
-    <>Oops! This page is as missing as your project documentation <span className="emoji">📝</span></>,
-    <>Error 404: Success not found in your recent projects <span className="emoji">💀</span></>
+    <>Lost your way?</>,
+    <>Just like you lost your last hackathon?</>,
+    <>404: Page not found. Unlike your winning strategy!</>,
+    <>Oops! This page is as missing as your project documentation</>,
+    <>Error 404: Success not found in your recent projects</>
   ]
 
   const encouragingMessages = [
-    <>But hey, every great developer gets lost sometimes! <span className="emoji">🚀</span></>,
-    <>Even the best hackers take wrong turns <span className="emoji">💻</span></>,
-    <>404 errors happen to the best of us <span className="emoji">🛠️</span></>,
-    <>This is just a minor bug in your navigation <span className="emoji">🐛</span></>,
-    <>Consider this a feature, not a bug! <span className="emoji">✨</span></>
+    <>But hey, every great developer gets lost sometimes!</>,
+    <>Even the best hackers take wrong turns</>,
+    <>404 errors happen to the best of us</>,
+    <>This is just a minor bug in your navigation</>,
+    <>Consider this a feature, not a bug!</>
   ]
 
   useEffect(() => {
@@ -105,11 +105,11 @@ export default function NotFound() {
 
           {/* Smoothly Animated Subtitle */}
           <div className="text-lg text-orange-400 font-medium transition-all duration-500 ease-in-out">
-            {trollLevel === 0 && <span className="animate-fade-in"><span className="emoji">🧭</span> Navigation skills: 404 not found</span>}
-            {trollLevel === 1 && <span className="animate-fade-in"><span className="emoji">🏆</span> Recent wins: Empty array []</span>}
-            {trollLevel === 2 && <span className="animate-fade-in"><span className="emoji">📊</span> Success rate: NaN%</span>}
-            {trollLevel === 3 && <span className="animate-fade-in"><span className="emoji">📚</span> Documentation: undefined</span>}
-            {trollLevel === 4 && <span className="animate-fade-in"><span className="emoji">💡</span> Bright ideas: null</span>}
+            {trollLevel === 0 && <span className="animate-fade-in">Navigation skills: 404 not found</span>}
+            {trollLevel === 1 && <span className="animate-fade-in">Recent wins: Empty array []</span>}
+            {trollLevel === 2 && <span className="animate-fade-in">Success rate: NaN%</span>}
+            {trollLevel === 3 && <span className="animate-fade-in">Documentation: undefined</span>}
+            {trollLevel === 4 && <span className="animate-fade-in">Bright ideas: null</span>}
           </div>
         </div>
 
@@ -131,7 +131,7 @@ export default function NotFound() {
         <div className="mt-12 max-w-lg">
           <div className="bg-gray-900/60 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 hover:border-orange-500/30 transition-all duration-500 hover:shadow-xl hover:shadow-orange-500/10 card-glow">
             <h3 className="text-lg font-semibold bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent mb-2">
-              <span className="emoji">🚀</span> Ready to get back on track?
+              Ready to get back on track?
             </h3>
             <p className="text-gray-300 text-sm">
               Every 404 is just a detour to success. Upload your next presentation and let our AI help you win that hackathon!
@@ -143,7 +143,7 @@ export default function NotFound() {
       {/* Floating Code Snippets */}
       <div className="absolute top-1/4 left-5 text-xs text-gray-600 font-mono opacity-50 animate-pulse">
         if (success) &#123;<br />
-        &nbsp;&nbsp;return "<span className="emoji">🏆</span>";<br />
+        &nbsp;&nbsp;return "success";<br />
         &#125; else &#123;<br />
         &nbsp;&nbsp;return "404";<br />
         &#125;

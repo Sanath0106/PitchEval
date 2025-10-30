@@ -47,6 +47,15 @@ const EvaluationSchema = new mongoose.Schema({
     },
   },
   suggestions: [String],
+  detectedDomain: {
+    category: String,
+    confidence: {
+      type: Number,
+      min: 1,
+      max: 10,
+    },
+    reason: String,
+  },
   trackRelevance: {
     isRelevant: {
       type: Boolean,

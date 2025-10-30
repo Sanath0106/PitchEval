@@ -3,19 +3,6 @@
 import { useState, useEffect } from 'react'
 import { FileText, Search, Lightbulb, BarChart3, CheckCircle } from 'lucide-react'
 
-// Add custom CSS for animations
-const customStyles = `
-  @keyframes float {
-    0%, 100% { transform: translateY(0px) rotate(0deg); }
-    33% { transform: translateY(-10px) rotate(120deg); }
-    66% { transform: translateY(5px) rotate(240deg); }
-  }
-  
-  .animate-float {
-    animation: float 4s ease-in-out infinite;
-  }
-`
-
 interface ProcessingLoaderProps {
   message?: string
   submessage?: string
@@ -33,16 +20,39 @@ export default function ProcessingLoader({
   hackathonId,
   pollForCompletion = false
 }: ProcessingLoaderProps) {
-  const [currentStep, setCurrentStep] = useState(-1)
+  const [currentStep, setCurrentStep] = useState(0)
+  const [stepProgress, setStepProgress] = useState(0)
   const [completedSteps, setCompletedSteps] = useState<number[]>([])
   const [mounted, setMounted] = useState(false)
   const [isCompleted, setIsCompleted] = useState(false)
+  const [overallProgress, setOverallProgress] = useState(0)
+  const [isPolling, setIsPolling] = useState(false)
 
   const steps = [
-    { icon: FileText, text: "Reading presentation content", key: "reading" },
-    { icon: Search, text: "Analyzing structure & flow", key: "analyzing" },
-    { icon: Lightbulb, text: "Evaluating innovation & impact", key: "evaluating" },
-    { icon: BarChart3, text: "Generating detailed scores", key: "scoring" }
+    { 
+      icon: FileText, 
+      text: "Reading presentation content", 
+      key: "reading",
+      description: "Extracting text and analyzing document structure"
+    },
+    { 
+      icon: Search, 
+      text: "Analyzing structure & flow", 
+      key: "analyzing",
+      description: "Evaluating presentation organization and narrative"
+    },
+    { 
+      icon: Lightbulb, 
+      text: "Evaluating innovation & impact", 
+      key: "evaluating",
+      description: "Assessing project uniqueness and market potential"
+    },
+    { 
+      icon: BarChart3, 
+      text: "Generating detailed scores", 
+      key: "scoring",
+      description: "Computing final scores and improvement suggestions"
+    }
   ]
 
   useEffect(() => {
@@ -53,156 +63,223 @@ export default function ProcessingLoader({
     if (!mounted) return
     
     let pollInterval: NodeJS.Timeout
-    let stepTimeout: NodeJS.Timeout
+    let progressInterval: NodeJS.Timeout
 
-    if (pollForCompletion && (evaluationId || hackathonId)) {
-      // Real-time polling for actual completion
+    if (pollForCompletion && (evaluationId || hackathonId) && !isPolling) {
+      setIsPolling(true)
+      
+      // Smart completion checking with better error handling
       const checkCompletion = async () => {
+        if (isCompleted) return true // Already completed, stop polling
+        
         try {
           // Use different endpoints for hackathon vs individual evaluation
           const endpoint = hackathonId ? `/api/hackathon/${hackathonId}` : `/api/evaluations/${evaluationId}`
+          console.log(`Polling for completion: ${endpoint}`)
+          
           const response = await fetch(endpoint)
           if (response.ok) {
             const data = await response.json()
+            console.log(`Poll #${pollAttempts} result:`, { 
+              status: data.status, 
+              id: evaluationId || hackathonId,
+              hasScores: !!data.scores,
+              updatedAt: data.updatedAt 
+            })
+            
             if (data.status === 'completed') {
-              // Mark all steps as completed and redirect immediately
+              // Complete all remaining steps smoothly
               setCompletedSteps([0, 1, 2, 3])
               setCurrentStep(-1)
+              setStepProgress(100)
+              setOverallProgress(100)
               setIsCompleted(true)
-              onComplete?.()
+              setIsPolling(false)
+              console.log('Evaluation completed - stopping all polling')
+              
+              // Redirect after showing completion
+              setTimeout(() => {
+                onComplete?.()
+              }, 2000)
               return true
             } else if (data.status === 'failed') {
+              console.log('Evaluation failed - stopping polling')
+              setIsCompleted(true)
+              setIsPolling(false)
               onComplete?.()
               return true
             }
+          } else {
+            console.log(`Poll failed with status: ${response.status}`)
           }
         } catch (error) {
-          // Silently handle polling errors
+          console.log('Poll error:', error)
+          // Continue polling on errors, but with backoff
         }
         return false
       }
 
-      // Start step progression immediately
-      let stepIndex = 0
-      const progressSteps = () => {
-        if (stepIndex < steps.length && !isCompleted) {
-          setCurrentStep(stepIndex)
+      // Smooth step progression with reliable state management
+      const processStep = (stepIndex: number) => {
+        if (stepIndex >= steps.length || isCompleted) return
+        
+        setCurrentStep(stepIndex)
+        setStepProgress(0)
+        
+        // Smooth progress animation for current step
+        let progress = 0
+        const stepDuration = 3000 + Math.random() * 1000 // 3-4 seconds per step
+        const progressIncrement = 100 / (stepDuration / 100) // Update every 100ms
+        
+        if (progressInterval) clearInterval(progressInterval)
+        progressInterval = setInterval(() => {
+          if (isCompleted) {
+            clearInterval(progressInterval)
+            return
+          }
           
-          stepTimeout = setTimeout(() => {
-            if (!isCompleted) {
-              // Complete current step and move to next
-              setCompletedSteps(prev => [...prev, stepIndex])
-              stepIndex++
-              
-              if (stepIndex < steps.length) {
-                // Start next step immediately
-                setCurrentStep(stepIndex)
-                progressSteps()
-              } else {
-                // All steps done
-                setCurrentStep(-1)
+          progress += progressIncrement
+          
+          if (progress >= 100) {
+            progress = 100
+            setStepProgress(100)
+            clearInterval(progressInterval)
+            
+            // Mark step as completed and move to next
+            setTimeout(() => {
+              if (!isCompleted) {
+                setCompletedSteps(prev => {
+                  if (!prev.includes(stepIndex)) {
+                    return [...prev, stepIndex]
+                  }
+                  return prev
+                })
+                setOverallProgress(((stepIndex + 1) / steps.length) * 100)
+                
+                // Move to next step or complete
+                const nextStep = stepIndex + 1
+                if (nextStep < steps.length) {
+                  setTimeout(() => {
+                    processStep(nextStep)
+                  }, 500)
+                } else {
+                  // All steps completed - ensure 100% progress
+                  setOverallProgress(100)
+                  setStepProgress(100)
+                }
               }
-            }
-          }, 3000) // 3 seconds per step
+            }, 300)
+          } else {
+            setStepProgress(progress)
+            setOverallProgress(((stepIndex + progress / 100) / steps.length) * 100)
+          }
+        }, 100) // Slower updates for smoother animation
+      }
+      
+      // Start with the first step
+      processStep(0)
+
+      // Poll with exponential backoff - start at 5s, max 15s
+      let pollDelay = 5000 // Start with 5 seconds
+      const maxPollDelay = 15000 // Max 15 seconds
+      let pollAttempts = 0
+      const maxPollAttempts = 15 // Stop after ~10 minutes max
+      const startTime = Date.now()
+      const maxPollTime = 10 * 60 * 1000 // 10 minutes absolute maximum
+      
+      const schedulePoll = () => {
+        const elapsed = Date.now() - startTime
+        if (pollAttempts >= maxPollAttempts || isCompleted || elapsed > maxPollTime) {
+          console.log(`Polling stopped: attempts=${pollAttempts}, completed=${isCompleted}, elapsed=${elapsed}ms`)
+          setIsPolling(false)
+          
+          // If we've been polling for a long time, assume it's completed
+          if (elapsed > maxPollTime || pollAttempts >= maxPollAttempts) {
+            console.log('Polling timeout - assuming completion and redirecting')
+            setCompletedSteps([0, 1, 2, 3])
+            setCurrentStep(-1)
+            setStepProgress(100)
+            setOverallProgress(100)
+            setIsCompleted(true)
+            setTimeout(() => onComplete?.(), 2000)
+          }
+          return
+        }
+        
+        pollInterval = setTimeout(async () => {
+          pollAttempts++
+          const completed = await checkCompletion()
+          if (completed) {
+            clearTimeout(pollInterval)
+            setIsPolling(false)
+          } else {
+            // Exponential backoff: increase delay gradually
+            pollDelay = Math.min(pollDelay * 1.2, maxPollDelay)
+            schedulePoll()
+          }
+        }, pollDelay)
+      }
+      
+      // Initial check before starting polling
+      const initialCheck = async () => {
+        console.log('Performing initial completion check...')
+        const completed = await checkCompletion()
+        if (!completed && !isCompleted) {
+          console.log('Starting polling schedule...')
+          setTimeout(() => {
+            if (!isCompleted) schedulePoll()
+          }, 8000) // Wait 8 seconds before first poll to allow processing
+        } else {
+          console.log('Evaluation already completed - skipping polling')
+          setIsPolling(false)
         }
       }
       
-      // Start immediately
-      progressSteps()
-
-      // Poll every 3 seconds for real-time updates
-      pollInterval = setInterval(async () => {
-        const completed = await checkCompletion()
-        if (completed) {
-          clearInterval(pollInterval)
-          if (stepTimeout) clearTimeout(stepTimeout)
-        }
-      }, 3000)
+      // Start with initial check
+      initialCheck()
     }
 
     return () => {
-      if (pollInterval) clearInterval(pollInterval)
-      if (stepTimeout) clearTimeout(stepTimeout)
+      if (pollInterval) clearTimeout(pollInterval)
+      if (progressInterval) clearInterval(progressInterval)
+      setIsPolling(false)
     }
-  }, [evaluationId, hackathonId, pollForCompletion, mounted, onComplete, isCompleted])
+  }, [evaluationId, hackathonId, pollForCompletion, mounted, onComplete])
 
   return (
-    <>
-      <style dangerouslySetInnerHTML={{ __html: customStyles }} />
-      <div className="min-h-screen bg-black relative overflow-hidden flex items-center justify-center p-4">
-      {/* Animated Background */}
-      <div className="absolute inset-0">
-        {/* Gradient orbs */}
-        <div className="absolute top-20 left-10 w-96 h-96 bg-orange-500/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-20 right-10 w-80 h-80 bg-blue-500/15 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
-        
-        {/* Floating particles */}
-        {[...Array(12)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute w-1 h-1 bg-orange-400/60 rounded-full animate-float"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 3}s`,
-              animationDuration: `${3 + Math.random() * 2}s`
-            }}
-          />
-        ))}
-        
-        {/* Grid overlay */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px] opacity-30"></div>
-      </div>
-
-      <div className="w-full max-w-md mx-auto relative z-10">
-        {/* Enhanced Loader */}
-        <div className="relative mb-8">
-          <div className="w-20 h-20 mx-auto relative">
-            {/* Outer rotating ring */}
-            <div className="absolute inset-0 border-4 border-gray-800 rounded-full"></div>
-            <div className="absolute inset-0 border-4 border-transparent border-t-orange-500 border-r-orange-400 rounded-full animate-spin"></div>
-            
-            {/* Middle ring */}
-            <div className="absolute inset-2 border-2 border-gray-700 rounded-full"></div>
-            <div className="absolute inset-2 border-2 border-transparent border-b-blue-400 rounded-full animate-spin" style={{animationDirection: 'reverse', animationDuration: '2s'}}></div>
-            
-            {/* Inner pulsing core */}
-            <div className="absolute inset-6 bg-gradient-to-r from-orange-500 to-blue-500 rounded-full animate-pulse"></div>
-            <div className="absolute inset-8 bg-white rounded-full animate-ping opacity-20"></div>
+    <div className="min-h-screen bg-black flex items-center justify-center p-4">
+      <div className="w-full max-w-md mx-auto">
+        {/* Simple Header */}
+        <div className="text-center mb-8">
+          <div className="w-12 h-12 mx-auto mb-4 relative">
+            <div className="absolute inset-0 border-2 border-gray-800 rounded-full"></div>
+            <div className="absolute inset-0 border-2 border-transparent border-t-orange-500 rounded-full animate-spin"></div>
           </div>
           
-          {/* Orbiting dots */}
-          <div className="absolute inset-0 animate-spin" style={{animationDuration: '4s'}}>
-            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-orange-400 rounded-full"></div>
-            <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-blue-400 rounded-full"></div>
-            <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-purple-400 rounded-full"></div>
-            <div className="absolute right-0 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-green-400 rounded-full"></div>
-          </div>
+          <h2 className="text-xl font-medium text-white mb-2">
+            {isCompleted ? "Analysis Complete" : message}
+          </h2>
+          <p className="text-gray-400 text-sm">
+            {isCompleted ? "Preparing your results..." : submessage}
+          </p>
         </div>
 
-        {/* Enhanced Message */}
-        <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-white via-orange-200 to-blue-200 bg-clip-text text-transparent mb-3 animate-pulse">
-            {isCompleted ? "🎉 Analysis Complete!" : message}
-          </h2>
-          <p className="text-gray-300 text-base leading-relaxed">
-            {isCompleted ? "Preparing your detailed results..." : submessage}
-          </p>
-          
-          {/* Progress bar */}
-          <div className="mt-4 w-full bg-gray-800 rounded-full h-1 overflow-hidden">
+        {/* Progress Bar */}
+        <div className="mb-6">
+          <div className="flex justify-between text-xs text-gray-400 mb-2">
+            <span>Progress</span>
+            <span>{Math.round(overallProgress)}%</span>
+          </div>
+          <div className="w-full bg-gray-800 rounded-full h-1.5">
             <div 
-              className="h-full bg-gradient-to-r from-orange-500 to-blue-500 rounded-full transition-all duration-1000 ease-out"
-              style={{
-                width: `${((completedSteps.length + (currentStep >= 0 ? 0.5 : 0)) / steps.length) * 100}%`
-              }}
+              className="bg-orange-500 h-1.5 rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${overallProgress}%` }}
             />
           </div>
         </div>
 
-        {/* Enhanced Processing Steps */}
-        <div className="space-y-4 mb-6">
+        {/* Simple Steps */}
+        <div className="space-y-3">
           {steps.map((step, index) => {
             const Icon = step.icon
             const isCompleted = completedSteps.includes(index)
@@ -211,97 +288,82 @@ export default function ProcessingLoader({
             return (
               <div 
                 key={index}
-                className={`relative flex items-center space-x-4 p-4 rounded-xl backdrop-blur-sm transition-all duration-700 transform ${
-                  isActive 
-                    ? 'bg-gradient-to-r from-orange-500/20 to-blue-500/20 border-2 border-orange-500/50 scale-105 shadow-2xl shadow-orange-500/30' 
-                    : isCompleted 
-                    ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-2 border-green-500/40 shadow-lg shadow-green-500/20' 
-                    : 'bg-gray-900/40 border border-gray-700/50 opacity-60'
+                className={`flex items-center space-x-3 p-3 rounded-lg transition-all duration-300 ${
+                  isActive ? 'bg-gray-900 border border-orange-500/30' : 
+                  isCompleted ? 'bg-gray-900 border border-green-500/30' : 
+                  'bg-gray-900/50 border border-gray-800'
                 }`}
               >
-                {/* Animated background for active step */}
-                {isActive && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-orange-500/10 to-blue-500/10 rounded-2xl animate-pulse"></div>
-                )}
-                
-                <div className={`relative p-4 rounded-full transition-all duration-700 ${
-                  isActive ? 'bg-gradient-to-r from-orange-500/40 to-blue-500/40 scale-110 shadow-lg' : 
-                  isCompleted ? 'bg-gradient-to-r from-green-500/40 to-emerald-500/40 shadow-md' : 'bg-gray-700/60'
+                <div className={`p-1.5 rounded-full ${
+                  isActive ? 'bg-orange-500/20' : 
+                  isCompleted ? 'bg-green-500/20' : 'bg-gray-800'
                 }`}>
                   {isCompleted ? (
-                    <CheckCircle className="w-6 h-6 text-green-400" />
+                    <CheckCircle className="w-4 h-4 text-green-400" />
                   ) : (
-                    <Icon className={`w-6 h-6 transition-all duration-700 ${
-                      isActive ? 'text-orange-300 animate-pulse' : 'text-gray-500'
+                    <Icon className={`w-4 h-4 ${
+                      isActive ? 'text-orange-400' : 'text-gray-500'
                     }`} />
-                  )}
-                  
-                  {/* Glowing effect for active step */}
-                  {isActive && (
-                    <div className="absolute inset-0 rounded-full bg-orange-400/20 animate-ping"></div>
                   )}
                 </div>
                 
-                <div className="flex-1 relative">
-                  <span className={`font-semibold text-lg transition-all duration-700 ${
+                <div className="flex-1">
+                  <div className={`text-sm font-medium ${
                     isActive ? 'text-white' : 
                     isCompleted ? 'text-green-300' : 'text-gray-400'
                   }`}>
                     {step.text}
-                  </span>
+                  </div>
                   
-                  {isActive && (
-                    <div className="flex items-center mt-3 space-x-3">
-                      <span className="text-orange-300 text-sm font-medium">Processing</span>
-                      <div className="flex space-x-1">
-                        <div className="w-2.5 h-2.5 bg-gradient-to-r from-orange-400 to-blue-400 rounded-full animate-bounce"></div>
-                        <div className="w-2.5 h-2.5 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                        <div className="w-2.5 h-2.5 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-                      </div>
-                      
-                      {/* Animated progress line */}
-                      <div className="flex-1 h-0.5 bg-gray-700 rounded-full overflow-hidden ml-4">
-                        <div className="h-full bg-gradient-to-r from-orange-400 to-blue-400 rounded-full animate-pulse"></div>
-                      </div>
+                  {(isActive || isCompleted) && (
+                    <div className={`text-xs mt-1 ${
+                      isActive ? 'text-gray-300' : 
+                      isCompleted ? 'text-green-400' : 'text-gray-500'
+                    }`}>
+                      {isCompleted ? '✓ Completed successfully' : step.description}
                     </div>
                   )}
                   
-                  {isCompleted && (
-                    <div className="text-green-300 text-sm mt-2 font-medium flex items-center">
-                      <span className="mr-2">✓</span>
-                      <span>Completed successfully</span>
+                  {isActive && (
+                    <div className="mt-2">
+                      <div className="w-full bg-gray-800 rounded-full h-1">
+                        <div 
+                          className="bg-orange-500 h-1 rounded-full transition-all duration-300"
+                          style={{ width: `${stepProgress}%` }}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
                 
-                {/* Step number indicator */}
-                <div className={`absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-500 ${
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium ${
                   isActive ? 'bg-orange-500 text-white' :
-                  isCompleted ? 'bg-green-500 text-white' : 'bg-gray-600 text-gray-300'
+                  isCompleted ? 'bg-green-500 text-white' : 
+                  'bg-gray-700 text-gray-400'
                 }`}>
-                  {index + 1}
+                  {isCompleted ? '✓' : index + 1}
                 </div>
               </div>
             )
           })}
         </div>
 
-        {/* Processing Time */}
-        <div className="text-center">
-          <div className="inline-flex items-center space-x-3 text-gray-300 text-sm bg-gray-900/50 backdrop-blur-sm px-4 py-2 rounded-full border border-gray-700/50">
-            <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></div>
-            <span className="font-medium">
-              {isCompleted ? 'Analysis Complete' : `Processing... ${Math.max(0, 60 - (completedSteps.length * 15))}s remaining`}
+        {/* Status Footer */}
+        <div className="text-center mt-6">
+          <div className="inline-flex items-center space-x-2 text-xs text-gray-400">
+            <div className={`w-1.5 h-1.5 rounded-full ${
+              isCompleted ? 'bg-green-400' : 'bg-orange-400 animate-pulse'
+            }`}></div>
+            <span>
+              {isCompleted ? 'Analysis complete • Redirecting to results...' : 
+               currentStep < steps.length ? 
+                 `${steps[currentStep]?.text} • Step ${currentStep + 1} of ${steps.length}` :
+                 'Processing...'
+              }
             </span>
           </div>
-          
-          {/* Processing status */}
-          <p className="text-gray-500 text-xs mt-3">
-            {isCompleted ? 'Redirecting to results...' : `Step ${completedSteps.length + (currentStep >= 0 ? 1 : 0)} of ${steps.length}`}
-          </p>
         </div>
       </div>
     </div>
-    </>
   )
 }

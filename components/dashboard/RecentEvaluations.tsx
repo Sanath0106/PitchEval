@@ -190,7 +190,7 @@ export default function RecentEvaluations() {
                       {evaluation.scores.overall.toFixed(1)}/10
                     </div>
                     <div className="text-xs text-gray-400">
-                      {evaluation.scores.overall === 0 ? 'Discarded' : 'Overall Score'}
+                      {evaluation.scores.overall === 0 ? 'Domain Mismatch' : 'Overall Score'}
                     </div>
                   </div>
                 )}
@@ -199,7 +199,7 @@ export default function RecentEvaluations() {
                   {getStatusIcon(evaluation.status)}
                   <span className="text-sm text-gray-300 hidden sm:inline">
                     {evaluation.status === 'completed' && evaluation.scores?.overall === 0 
-                      ? 'Discarded' 
+                      ? 'Domain Mismatch' 
                       : getStatusText(evaluation.status)
                     }
                   </span>

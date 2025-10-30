@@ -172,10 +172,7 @@ export async function processQueue(
       try {
         const job: EvaluationJob = JSON.parse(msg.content.toString())
         
-        console.log(`Processing job: ${job.type}`, {
-          evaluationId: job.evaluationId,
-          fileName: job.fileName
-        })
+        // Processing evaluation job
 
         await processor(job)
         
@@ -205,7 +202,7 @@ export async function processQueue(
       }
     })
 
-    console.log(`Queue processor started for: ${queueName}`)
+    // Queue processor ready
 
   } catch (error) {
     console.error('Failed to process queue:', error)

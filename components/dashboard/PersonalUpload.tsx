@@ -6,8 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Upload, FileText, Loader2 } from 'lucide-react'
 import ProcessingLoader from '@/components/ui/ProcessingLoader'
 
@@ -15,9 +13,6 @@ import Logo from '@/components/ui/Logo'
 
 export default function PersonalUpload() {
   const [file, setFile] = useState<File | null>(null)
-  const [domain, setDomain] = useState('')
-  const [description, setDescription] = useState('')
-
   const [isUploading, setIsUploading] = useState(false)
   const [evaluationId, setEvaluationId] = useState<string | null>(null)
 
@@ -49,18 +44,13 @@ export default function PersonalUpload() {
       alert('Please select a file to upload.')
       return
     }
-    
-    if (!domain) {
-      alert('Please select a project domain/track.')
-      return
-    }
 
     setIsUploading(true)
     
     const formData = new FormData()
     formData.append('file', file)
-    formData.append('domain', domain)
-    formData.append('description', description)
+    formData.append('domain', 'auto-detect') // Let AI detect the domain
+    formData.append('description', '') // No description needed
 
     try {
       const response = await fetch('/api/evaluate/personal', {
@@ -144,16 +134,16 @@ export default function PersonalUpload() {
         <div className="max-w-2xl mx-auto">
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-white via-orange-200 to-white bg-clip-text text-transparent animate-pulse">
-              Personal Evaluation
+              AI Presentation Analysis
             </h1>
-            <p className="text-gray-400">Upload your presentation for AI-powered analysis and feedback</p>
+            <p className="text-gray-400">Upload your presentation and let AI automatically detect the theme and provide intelligent feedback</p>
           </div>
 
           <Card className="bg-gray-900/60 backdrop-blur-sm border-gray-700/50 hover:border-orange-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-orange-500/20 card-glow">
             <CardHeader>
               <CardTitle className="text-white">Upload Your Presentation</CardTitle>
               <CardDescription className="text-gray-400">
-                Supported format: PDF (Max size: 10MB)
+                AI will automatically detect your project theme and provide tailored feedback • PDF format • Max 10MB
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -195,64 +185,21 @@ export default function PersonalUpload() {
                   </div>
                 </div>
 
-                <div>
-                  <Label htmlFor="domain" className="text-gray-300">Project Domain/Track *</Label>
-                  <Select value={domain} onValueChange={setDomain} required>
-                    <SelectTrigger className="bg-gray-800/50 border-gray-600 text-white">
-                      <SelectValue placeholder="Select project domain (required)" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-gray-800 border-gray-600 text-white">
-                      <SelectItem value="web-development" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">Web Development</SelectItem>
-                      <SelectItem value="mobile-app" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">Mobile App Development</SelectItem>
-                      <SelectItem value="ai-ml" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">AI/Machine Learning</SelectItem>
-                      <SelectItem value="data-science" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">Data Science & Analytics</SelectItem>
-                      <SelectItem value="blockchain" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">Blockchain & Web3</SelectItem>
-                      <SelectItem value="cybersecurity" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">Cybersecurity</SelectItem>
-                      <SelectItem value="iot" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">Internet of Things (IoT)</SelectItem>
-                      <SelectItem value="ar-vr" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">AR/VR & Metaverse</SelectItem>
-                      <SelectItem value="fintech" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">FinTech</SelectItem>
-                      <SelectItem value="healthtech" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">HealthTech & MedTech</SelectItem>
-                      <SelectItem value="edtech" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">EdTech</SelectItem>
-                      <SelectItem value="cleantech" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">CleanTech & Sustainability</SelectItem>
-                      <SelectItem value="agritech" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">AgriTech</SelectItem>
-                      <SelectItem value="gaming" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">Gaming & Entertainment</SelectItem>
-                      <SelectItem value="social-impact" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">Social Impact</SelectItem>
-                      <SelectItem value="e-commerce" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">E-commerce & Retail</SelectItem>
-                      <SelectItem value="logistics" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">Logistics & Supply Chain</SelectItem>
-                      <SelectItem value="robotics" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">Robotics & Automation</SelectItem>
-                      <SelectItem value="devtools" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">Developer Tools</SelectItem>
-                      <SelectItem value="other" className="text-white hover:bg-orange-500/40 focus:bg-orange-500/40 data-[highlighted]:bg-orange-500/40 hover:border-l-4 hover:border-orange-500 focus:border-l-4 focus:border-orange-500 data-[highlighted]:border-l-4 data-[highlighted]:border-orange-500">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
 
-
-
-                <div>
-                  <Label htmlFor="description" className="text-gray-300">Additional Information (Optional)</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Provide any additional context about your project..."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={3}
-                    className="bg-gray-800/50 border-gray-600 text-white placeholder:text-gray-400"
-                  />
-                </div>
 
                 <Button 
                   type="submit" 
                   className="w-full" 
                   variant="orange"
-                  disabled={!file || !domain || isUploading}
+                  disabled={!file || isUploading}
                 >
                   {isUploading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Analyzing Presentation...
+                      AI Analyzing...
                     </>
                   ) : (
-                    'Evaluate Presentation'
+                    'Start AI Analysis'
                   )}
                 </Button>
               </form>
