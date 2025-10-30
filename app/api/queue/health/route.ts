@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
       queueSystem: {
         enabled: !!process.env.RABBITMQ_URL,
         url: process.env.RABBITMQ_URL ? 'configured' : 'not configured'
-      },
+      } as { enabled: boolean; url: string; error?: string },
       queues: {} as Record<string, any>
     }
 
@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
       } catch (error) {
         healthCheck.queueSystem = {
           enabled: false,
+          url: 'connection failed',
           error: error instanceof Error ? error.message : 'Connection failed'
         }
       }

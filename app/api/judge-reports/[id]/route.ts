@@ -7,7 +7,7 @@ import { generateJudgeReport } from '@/lib/judgeReportGenerator'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth()
@@ -18,8 +18,10 @@ export async function GET(
 
     await dbConnect()
 
+    const { id } = await params
+    
     const evaluation = await Evaluation.findOne({
-      _id: params.id,
+      _id: id,
       userId,
       status: 'completed'
     })
