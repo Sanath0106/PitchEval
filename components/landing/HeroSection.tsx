@@ -53,7 +53,7 @@ export default function HeroSection() {
               {/* Dashboard Header */}
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
+                  <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center shadow-lg shadow-orange-500/25">
                     <span className="text-white font-bold text-sm">P</span>
                   </div>
                   <span className="text-white font-semibold text-lg">PitchEval</span>

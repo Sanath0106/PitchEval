@@ -23,7 +23,7 @@ export default function Logo({
     if (isSignedIn) {
       router.push('/dashboard')
     } else {
-      router.push('/landing')
+      router.push('/')
     }
   }
 
@@ -32,7 +32,7 @@ export default function Logo({
       className={`${className} cursor-pointer group transition-all duration-300 hover:scale-105`}
       onClick={handleLogoClick}
     >
-      <div className={`${iconSize} bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/25 group-hover:shadow-orange-500/40 transition-all duration-300`}>
+      <div className={`${iconSize} bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center shadow-lg shadow-orange-500/25 group-hover:shadow-orange-500/40 transition-all duration-300`}>
         <span className="text-white font-bold text-lg">P</span>
       </div>
       <div className="flex flex-col">
