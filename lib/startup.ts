@@ -17,7 +17,7 @@ export async function initializeServices(): Promise<void> {
     } else {
       // Only start traditional queue workers if explicitly enabled
       if (process.env.START_QUEUE_WORKER === 'true') {
-        console.log('Starting traditional queue workers')
+        // Starting traditional queue workers
         await queueWorker.start()
       }
       // Event-driven processing - no logs needed

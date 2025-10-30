@@ -179,7 +179,7 @@ export async function processQueue(
         // Acknowledge successful processing
         ch.ack(msg)
         
-        console.log(`Job completed: ${job.evaluationId}`)
+        // Job completed - logging removed for security
 
       } catch (error) {
         console.error('Job processing failed:', error)
@@ -242,7 +242,7 @@ export async function closeQueue(): Promise<void> {
       connection = null
     }
     
-    console.log('RabbitMQ connection closed')
+    // RabbitMQ connection closed
   } catch (error) {
     console.error('Error closing RabbitMQ connection:', error)
   }

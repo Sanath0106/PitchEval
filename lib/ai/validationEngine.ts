@@ -36,8 +36,7 @@ export async function validateSubmissionAgainstTemplate(
   templateAnalysis: TemplateAnalysisResult,
   additionalContext?: string
 ): Promise<ValidationResult> {
-  // Log validation attempt for debugging
-  console.log(`Starting template validation for: ${submissionFile.name}`)
+  // Validation attempt - debug logging removed for security
   
   try {
     return await performValidationWithFallback(submissionFile, templateAnalysis, additionalContext)
@@ -137,7 +136,7 @@ async function attemptSimplifiedValidation(
   templateAnalysis: TemplateAnalysisResult,
   additionalContext?: string
 ): Promise<ValidationResult> {
-  console.log(`Attempting simplified validation for: ${submissionFile.name}`)
+  // Simplified validation attempt - debug logging removed for security
   
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' })
 
@@ -200,7 +199,7 @@ async function attemptBasicValidation(
   templateAnalysis: TemplateAnalysisResult,
   additionalContext?: string
 ): Promise<ValidationResult> {
-  console.log(`Attempting basic validation for: ${submissionFile.name}`)
+  // Basic validation attempt - debug logging removed for security
   
   // Basic validation based on template metadata without AI analysis
   const basicScore = 6 // Neutral score when detailed analysis fails
@@ -235,7 +234,7 @@ async function attemptBasicValidation(
  * Creates a fallback validation result when all validation attempts fail
  */
 function createFallbackValidationResult(fileName: string, errorMessage: string): ValidationResult {
-  console.log(`Creating fallback validation result for: ${fileName}`)
+  // Fallback validation result - debug logging removed for security
   
   return {
     themeMatch: {
@@ -269,13 +268,13 @@ export function shouldSkipTemplateValidation(templateAnalysis?: any): boolean {
   
   // Skip if template analysis is incomplete
   if (!templateAnalysis.structure || !templateAnalysis.theme) {
-    console.log('Skipping template validation: incomplete template analysis')
+    // Skipping template validation: incomplete template analysis
     return true
   }
   
   // Skip if template has insufficient data
   if (!templateAnalysis.structure.totalSlides || templateAnalysis.structure.totalSlides < 3) {
-    console.log('Skipping template validation: insufficient template slides')
+    // Skipping template validation: insufficient template slides
     return true
   }
   

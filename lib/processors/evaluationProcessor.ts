@@ -4,6 +4,7 @@ import Hackathon from '../models/Hackathon'
 import { evaluatePresentationFile } from '../ai/gemini'
 import { generateFileHash, getCachedEvaluation, setCachedEvaluation } from '../cache'
 import { EvaluationJob, PersonalEvaluationJob, HackathonEvaluationJob } from '../queue'
+import { logger } from '../logger'
 
 // Process personal evaluation job
 export async function processPersonalEvaluation(job: PersonalEvaluationJob): Promise<void> {
@@ -27,21 +28,21 @@ export async function processPersonalEvaluation(job: PersonalEvaluationJob): Pro
     // Generate file hash for caching
     const fileHash = generateFileHash(fileBuffer, job.fileName)
 
-    console.log(`Processing personal evaluation: ${job.fileName}`)
+    logger.debug('Processing personal evaluation', { fileName: job.fileName })
 
     // Check Redis cache first
     const cachedResult = await getCachedEvaluation(fileHash, job.domain)
 
     let aiResult
     if (cachedResult) {
-      console.log(`Cache HIT for personal: ${job.fileName}`)
+      logger.debug('Cache HIT for personal evaluation')
       aiResult = {
         scores: cachedResult.scores,
         suggestions: cachedResult.suggestions,
         detectedDomain: cachedResult.detectedDomain
       }
     } else {
-      console.log(`Cache MISS for personal: ${job.fileName} - Processing with AI`)
+      logger.debug('Cache MISS for personal evaluation - Processing with AI')
       // Process with AI
       aiResult = await evaluatePresentationFile(file, job.domain, job.description)
 
@@ -66,7 +67,7 @@ export async function processPersonalEvaluation(job: PersonalEvaluationJob): Pro
       updatedAt: new Date(),
     })
 
-    console.log(`Personal evaluation completed: ${job.fileName}`)
+    logger.info('Personal evaluation completed')
 
   } catch (error) {
     console.error('Personal evaluation processing failed:', error)
@@ -107,15 +108,15 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
     // Generate file hash for caching
     const fileHash = generateFileHash(fileBuffer, job.fileName)
 
-    console.log(`Processing hackathon evaluation: ${job.fileName}`)
+    logger.debug('Processing hackathon evaluation')
 
     // Log template validation status for debugging
     if (job.templateAnalysis) {
-      console.log(`Job includes template analysis data - validation enabled`)
+      logger.debug('Job includes template analysis data - validation enabled')
     } else if (hackathon.templateAnalysis) {
-      console.log(`Hackathon has template analysis - will fetch from database if needed`)
+      logger.debug('Hackathon has template analysis - will fetch from database if needed')
     } else {
-      console.log(`No template analysis available - standard evaluation only`)
+      logger.debug('No template analysis available - standard evaluation only')
     }
 
     // Check Redis cache first
@@ -125,7 +126,7 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
     let templateValidation = null
 
     if (cachedResult) {
-      console.log(`Cache HIT for hackathon: ${job.fileName}`)
+      logger.debug('Cache HIT for hackathon evaluation')
       aiResult = {
         scores: cachedResult.scores,
         suggestions: cachedResult.suggestions,
@@ -136,10 +137,10 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
       templateValidation = (cachedResult as any).templateValidation || null
 
       if (templateValidation) {
-        console.log(`Using cached template validation for: ${job.fileName} - Compliance: ${templateValidation.overallCompliance}/10`)
+        logger.debug('Using cached template validation', { compliance: templateValidation.overallCompliance })
       }
     } else {
-      console.log(`Cache MISS for hackathon: ${job.fileName} - Processing with AI`)
+      logger.debug('Cache MISS for hackathon evaluation - Processing with AI')
       // Process with AI including track information and template
       aiResult = await evaluatePresentationFile(file, 'hackathon', undefined, hackathon.tracks)
 
@@ -149,11 +150,11 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
 
         // Check if validation should be skipped
         if (shouldSkipTemplateValidation(job.templateAnalysis)) {
-          console.log(`Skipping template validation for ${job.fileName}: insufficient template data`)
+          logger.debug('Skipping template validation: insufficient template data')
           templateValidation = null
         } else {
           try {
-            console.log(`Performing template validation for: ${job.fileName}`)
+            logger.debug('Performing template validation')
 
             // Use template analysis data from job (more efficient than database lookup)
             const templateAnalysisResult = {
@@ -187,20 +188,20 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
               overallCompliance: validationResult.overallCompliance
             }
 
-            console.log(`Template validation completed for: ${job.fileName} - Compliance: ${validationResult.overallCompliance}/10`)
+            logger.debug('Template validation completed', { compliance: validationResult.overallCompliance })
 
           } catch (validationError) {
             logValidationError(job.fileName, validationError as Error, 'primary validation')
 
             // Continue with standard evaluation - system remains functional
-            console.log(`Continuing with standard evaluation for ${job.fileName} - template validation will be skipped`)
+            logger.debug('Continuing with standard evaluation - template validation will be skipped')
             templateValidation = null
           }
         }
       } else if (hackathon.templateAnalysis && (job.includeTemplateValidation !== false)) {
         // Fallback: If job doesn't have template analysis but hackathon does, fetch from database
         try {
-          console.log(`Fetching template analysis from database for: ${job.fileName}`)
+          logger.debug('Fetching template analysis from database')
           const TemplateAnalysis = (await import('../models/TemplateAnalysis')).default
           const templateAnalysisData = await TemplateAnalysis.findById(hackathon.templateAnalysis)
 
@@ -237,16 +238,16 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
               overallCompliance: validationResult.overallCompliance
             }
 
-            console.log(`Template validation completed (fallback) for: ${job.fileName} - Compliance: ${validationResult.overallCompliance}/10`)
+            logger.debug('Template validation completed (fallback)', { compliance: validationResult.overallCompliance })
           }
         } catch (validationError) {
           const { logValidationError } = await import('../ai/validationEngine')
           logValidationError(job.fileName, validationError as Error, 'fallback validation')
-          console.log(`Continuing with standard evaluation for ${job.fileName} - all template validation attempts failed`)
+          logger.debug('Continuing with standard evaluation - all template validation attempts failed')
           templateValidation = null
         }
       } else {
-        console.log(`No template analysis available for hackathon ${job.hackathonId}, skipping template validation`)
+        logger.debug('No template analysis available for hackathon, skipping template validation')
       }
 
       // Cache the result including template validation
@@ -302,7 +303,7 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
 
     await Evaluation.findByIdAndUpdate(job.evaluationId, updateData)
 
-    console.log(`Hackathon evaluation completed: ${job.fileName}`)
+    logger.info('Hackathon evaluation completed')
 
     // Update hackathon rankings
     await updateHackathonRankings(job.hackathonId)
@@ -352,7 +353,7 @@ async function updateHackathonRankings(hackathonId: string): Promise<void> {
         updatedAt: new Date(),
       })
 
-      console.log(`Hackathon ${hackathonId} completed with rankings updated`)
+      logger.info('Hackathon completed with rankings updated')
     }
 
   } catch (error) {

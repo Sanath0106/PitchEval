@@ -82,7 +82,7 @@ export async function setCachedEvaluation(
     // Cache for 7 days
     await redis.setEx(cacheKey, 7 * 24 * 60 * 60, JSON.stringify(cacheData))
     
-    console.log(`Cached evaluation: ${cacheKey}`)
+    // Cache set successfully - no logging needed in production
   } catch (error) {
     console.error('Cache set error:', error)
   }

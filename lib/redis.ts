@@ -33,11 +33,11 @@ export async function getRedisClient() {
     })
 
     redisClient.on('connect', () => {
-      console.log('Redis Client Connected to Cloud')
+      // Redis Client Connected to Cloud
     })
 
     redisClient.on('ready', () => {
-      console.log('Redis Client Ready')
+      // Redis Client Ready
     })
 
     await redisClient.connect()
