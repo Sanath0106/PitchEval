@@ -1,13 +1,12 @@
 'use client'
 
-import { UserButton } from '@clerk/nextjs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Download, CheckCircle, XCircle, Home } from 'lucide-react'
 import Link from 'next/link'
 import ProcessingLoader from '@/components/ui/ProcessingLoader'
-import Logo from '@/components/ui/Logo'
+import AppHeader from '@/components/ui/AppHeader'
 
 interface EvaluationData {
   _id: string
@@ -108,12 +107,7 @@ export default function ResultsPage({ evaluation }: ResultsPageProps) {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,107,53,0.05),transparent_70%)]"></div>
       </div>
 
-      <header className="relative z-10 bg-gray-900/50 backdrop-blur-xl border-b border-gray-800/50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Logo />
-          <UserButton />
-        </div>
-      </header>
+      <AppHeader variant="dashboard" />
 
       <main className="relative z-10 container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">

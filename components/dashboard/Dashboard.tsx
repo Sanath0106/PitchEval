@@ -1,9 +1,8 @@
-import { UserButton } from '@clerk/nextjs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Upload, Users, FileText, BarChart3 } from 'lucide-react'
 import Link from 'next/link'
-import Logo from '@/components/ui/Logo'
+import AppHeader from '@/components/ui/AppHeader'
 import RecentEvaluations from './RecentEvaluations'
 
 export default function Dashboard() {
@@ -36,12 +35,7 @@ export default function Dashboard() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,107,53,0.03),transparent_70%)]"></div>
       </div>
 
-      <header className="relative z-10 bg-gray-900/50 backdrop-blur-xl border-b border-gray-800/50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Logo />
-          <UserButton />
-        </div>
-      </header>
+      <AppHeader variant="dashboard" />
 
       <main className="relative z-10 container mx-auto px-4 py-8">
         <div className="mb-8 text-center">

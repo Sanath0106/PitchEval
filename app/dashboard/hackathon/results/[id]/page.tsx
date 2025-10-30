@@ -2,14 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { UserButton } from '@clerk/nextjs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-
 import { Download, Home, Trophy, Medal, Award } from 'lucide-react'
 import Link from 'next/link'
 import ProcessingLoader from '@/components/ui/ProcessingLoader'
-import Logo from '@/components/ui/Logo'
+import AppHeader from '@/components/ui/AppHeader'
 
 interface HackathonEvaluation {
   _id: string
@@ -213,12 +211,7 @@ export default function HackathonResultsPage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.05),transparent_70%)]"></div>
       </div>
 
-      <header className="relative z-10 bg-gray-900/50 backdrop-blur-xl border-b border-gray-800/50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Logo />
-          <UserButton />
-        </div>
-      </header>
+      <AppHeader variant="dashboard" />
 
       <main className="relative z-10 container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
@@ -229,35 +222,52 @@ export default function HackathonResultsPage() {
             <p className="text-gray-400">Hackathon Evaluation Results</p>
           </div>
 
-          {/* Status Overview */}
-          <div className="grid md:grid-cols-3 gap-6 mb-8">
-            <Card className="bg-gray-900/60 backdrop-blur-sm border-gray-700/50 hover:border-blue-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-blue-500/20 card-glow">
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-green-500 mb-2">{relevantEvaluations.length}</div>
-                <div className="text-gray-400">Ranked</div>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-gray-900/60 backdrop-blur-sm border-gray-700/50 hover:border-blue-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-blue-500/20 card-glow">
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-yellow-500 mb-2">{processingEvaluations.length}</div>
-                <div className="text-gray-400">Processing</div>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-gray-900/60 backdrop-blur-sm border-gray-700/50 hover:border-blue-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-blue-500/20 card-glow">
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-red-500 mb-2">{failedEvaluations.length}</div>
-                <div className="text-gray-400">Failed</div>
-              </CardContent>
-            </Card>
-          </div>
+          {/* Status Overview - Only show cards with actual items */}
+          {(relevantEvaluations.length > 0 || processingEvaluations.length > 0 || failedEvaluations.length > 0 || discardedEvaluations.length > 0) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              {relevantEvaluations.length > 0 && (
+                <Card className="bg-gray-900/60 backdrop-blur-sm border-gray-700/50 hover:border-green-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-green-500/20 card-glow">
+                  <CardContent className="p-6 text-center">
+                    <div className="text-2xl font-bold text-green-500 mb-2">{relevantEvaluations.length}</div>
+                    <div className="text-gray-400">Successfully Evaluated</div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {discardedEvaluations.length > 0 && (
+                <Card className="bg-gray-900/60 backdrop-blur-sm border-gray-700/50 hover:border-orange-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-orange-500/20 card-glow">
+                  <CardContent className="p-6 text-center">
+                    <div className="text-2xl font-bold text-orange-500 mb-2">{discardedEvaluations.length}</div>
+                    <div className="text-gray-400">Track Mismatch</div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {processingEvaluations.length > 0 && (
+                <Card className="bg-gray-900/60 backdrop-blur-sm border-gray-700/50 hover:border-yellow-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-yellow-500/20 card-glow">
+                  <CardContent className="p-6 text-center">
+                    <div className="text-2xl font-bold text-yellow-500 mb-2">{processingEvaluations.length}</div>
+                    <div className="text-gray-400">Currently Processing</div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {failedEvaluations.length > 0 && (
+                <Card className="bg-gray-900/60 backdrop-blur-sm border-gray-700/50 hover:border-red-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-red-500/20 card-glow">
+                  <CardContent className="p-6 text-center">
+                    <div className="text-2xl font-bold text-red-500 mb-2">{failedEvaluations.length}</div>
+                    <div className="text-gray-400">Processing Failed</div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
 
           {/* Template Compliance Statistics */}
           {evaluationsWithTemplate.length > 0 && (
             <Card className="mb-8 bg-gray-900/60 backdrop-blur-sm border-gray-700/50 hover:border-blue-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-blue-500/20 card-glow">
               <CardHeader>
-                <CardTitle className="text-white">📋 Template Compliance Overview</CardTitle>
+                <CardTitle className="text-white">Template Compliance Overview</CardTitle>
                 <CardDescription className="text-gray-400">
                   How well submissions followed the provided template
                 </CardDescription>
@@ -292,7 +302,7 @@ export default function HackathonResultsPage() {
                   e.templateValidation?.overallCompliance !== undefined && e.templateValidation.overallCompliance < 6
                 ).length > 0 && (
                   <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
-                    <h4 className="text-red-400 font-medium mb-2">⚠️ Submissions with Significant Template Deviations</h4>
+                    <h4 className="text-red-400 font-medium mb-2">Submissions with Significant Template Deviations</h4>
                     <div className="space-y-2">
                       {evaluationsWithTemplate
                         .filter(e => e.templateValidation?.overallCompliance !== undefined && e.templateValidation.overallCompliance < 6)
@@ -322,7 +332,7 @@ export default function HackathonResultsPage() {
           {relevantEvaluations.length > 0 && (
             <Card className="mb-8 bg-gray-900/60 backdrop-blur-sm border-gray-700/50 hover:border-blue-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-blue-500/20 card-glow">
               <CardHeader>
-                <CardTitle className="text-white">🏆 Final Rankings</CardTitle>
+                <CardTitle className="text-white">Final Rankings</CardTitle>
                 <CardDescription className="text-gray-400">
                   Track-relevant presentations ranked by weighted overall score
                 </CardDescription>
@@ -444,7 +454,7 @@ export default function HackathonResultsPage() {
                     <div key={evaluation._id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-red-500/5 rounded-lg border border-red-500/20 space-y-3 sm:space-y-0">
                       <div className="flex items-center space-x-4 min-w-0 flex-1">
                         <div className="w-8 h-8 bg-red-500/20 rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="text-red-400 text-sm">❌</span>
+                          <span className="text-red-400 text-sm">✕</span>
                         </div>
                         <div className="min-w-0 flex-1">
                           <h4 className="font-medium text-white truncate">{evaluation.fileName}</h4>
