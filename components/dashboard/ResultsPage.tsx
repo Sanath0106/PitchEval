@@ -495,19 +495,19 @@ export default function ResultsPage({ evaluation }: ResultsPageProps) {
                 </Card>
               )}
 
-              <div className="flex justify-center gap-4">
-                <Link href={evaluation.hackathonId ? `/dashboard/hackathon/results/${evaluation.hackathonId}` : '/dashboard'}>
-                  <Button variant="outline" size="lg" className="border-white text-white hover:bg-white hover:text-black bg-gray-800/50">
+              <div className="flex flex-col sm:flex-row justify-center gap-4 w-full max-w-md mx-auto">
+                <Link href={evaluation.hackathonId ? `/dashboard/hackathon/results/${evaluation.hackathonId}` : '/dashboard'} className="w-full sm:w-auto">
+                  <Button variant="outline" size="lg" className="w-full border-white text-white hover:bg-white hover:text-black bg-gray-800/50">
                     <Home className="w-4 h-4 mr-2" />
-                    {evaluation.hackathonId ? 'Back to Hackathon Results' : 'Go to Dashboard'}
+                    <span className="truncate">{evaluation.hackathonId ? 'Back to Hackathon Results' : 'Go to Dashboard'}</span>
                   </Button>
                 </Link>
                 
                 {/* Only show download button for valid evaluations (not discarded) */}
                 {evaluation.scores.overall > 0 && (
-                  <Button onClick={handleDownloadReport} variant="orange" size="lg">
+                  <Button onClick={handleDownloadReport} variant="orange" size="lg" className="w-full sm:w-auto">
                     <Download className="w-4 h-4 mr-2" />
-                    Download Full Report
+                    <span className="truncate">Download Full Report</span>
                   </Button>
                 )}
               </div>
