@@ -76,7 +76,6 @@ const TemplateAnalysisSchema = new mongoose.Schema({
   fingerprint: {
     type: String,
     required: true,
-    unique: true,
   },
   createdAt: {
     type: Date,
