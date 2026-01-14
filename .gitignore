@@ -256,6 +256,7 @@ uploads/
 temp-uploads/
 cache/
 .cache/
+scripts/
 
 # Build artifacts
 *.map

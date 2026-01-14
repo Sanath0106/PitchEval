@@ -56,7 +56,7 @@ async function performValidationWithFallback(
   templateAnalysis: TemplateAnalysisResult,
   additionalContext?: string
 ): Promise<ValidationResult> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' })
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
   try {
     const bytes = await submissionFile.arrayBuffer()
@@ -138,7 +138,7 @@ async function attemptSimplifiedValidation(
 ): Promise<ValidationResult> {
   // Simplified validation attempt - debug logging removed for security
   
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' })
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
   try {
     const bytes = await submissionFile.arrayBuffer()
@@ -307,7 +307,7 @@ export async function analyzeThemeMatch(
   missingKeywords: string[]
   semanticSimilarity: number
 }> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' })
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
   try {
     const bytes = await submissionFile.arrayBuffer()
@@ -358,7 +358,7 @@ export async function analyzeStructureAdherence(
   sectionMatches: SectionMatch[]
   flowAnalysis: string
 }> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' })
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
   try {
     const bytes = await submissionFile.arrayBuffer()

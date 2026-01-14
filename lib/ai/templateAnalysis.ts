@@ -74,7 +74,7 @@ export async function analyzeTemplateStructure(
     throw new Error(validation.error)
   }
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' })
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
   try {
     const mimeType = templateFile.type || 'application/pdf'
@@ -170,7 +170,7 @@ export async function analyzeTemplateStructure(
  * Extracts theme information specifically from the first slide of a template
  */
 export async function extractThemeFromFirstSlide(templateFile: File): Promise<TemplateTheme> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' })
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
   try {
     const bytes = await templateFile.arrayBuffer()

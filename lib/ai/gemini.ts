@@ -24,11 +24,28 @@ interface EvaluationResult {
   }
 }
 
-// Direct file analysis with Gemini 2.0 Flash
+// Direct file analysis with Gemini 2.5 Flash
 export async function evaluatePresentationFile(file: File, domain: string, description?: string, tracks?: string[]): Promise<EvaluationResult> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' })
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
   try {
+    // PRE-VALIDATION: Check for obviously invalid documents BEFORE sending to AI
+    const preValidation = preValidateDocument(file.name, description)
+    if (!preValidation.isValid) {
+      return {
+        scores: {
+          feasibility: 0,
+          innovation: 0,
+          impact: 0,
+          clarity: 0,
+          overall: 0
+        },
+        suggestions: [
+          `❌ INVALID DOCUMENT TYPE: ${preValidation.reason}\n\nThis system only accepts PITCH PRESENTATIONS for projects, startups, products, or innovations.\n\nRequired elements:\n• Problem statement or challenge\n• Proposed solution or product\n• Target market or users\n• Business model or revenue plan\n• Technology stack or implementation\n• Team credentials\n• Competitive analysis\n• Roadmap or timeline\n\nPlease upload a proper pitch deck or project presentation.`
+        ]
+      }
+    }
+
     const mimeType = file.type || 'application/pdf'
 
     // Validate that the file is a PDF
@@ -163,299 +180,408 @@ async function extractTextFromFile(file: File): Promise<string> {
   }
 }
 
+// Pre-validation check for obviously invalid documents
+export function preValidateDocument(fileName: string, description?: string): { isValid: boolean; reason?: string } {
+  const invalidKeywords = [
+    // Academic (with variations)
+    'marksheet', 'mark sheet', 'mark_sheet', 'marksheets',
+    'transcript', 'transcripts',
+    'grade report', 'grade_report', 'gradereport', 'grade card', 'grade_card',
+    'cgpa', 'gpa', 'semester', 'sem',
+    'exam', 'examination', 'test score', 'test_score', 'testscore',
+    'academic record', 'academic_record',
+    'hall ticket', 'hall_ticket', 'hallticket',
+    'admit card', 'admit_card', 'admitcard',
+    'result', 'results', 'scorecard', 'score card', 'score_card',
+    
+    // Financial
+    'fee receipt', 'fee_receipt', 'feereceipt', 'fees receipt', 'fees_receipt',
+    'payment receipt', 'payment_receipt', 'paymentreceipt',
+    'invoice', 'bill', 'transaction', 'payment confirmation', 'payment_confirmation',
+    'bank statement', 'bank_statement',
+    'salary slip', 'salary_slip', 'pay stub', 'pay_stub', 'payslip',
+    'tax form', 'tax_form',
+    
+    // Personal
+    'resume', 'curriculum vitae', 'cv', 'biodata', 'bio-data', 'bio_data',
+    'id card', 'id_card', 'idcard', 'identity card', 'identity_card',
+    'passport', 'aadhar', 'aadhaar', 'driver license', 'driver_license', 'driving license',
+    
+    // Certificates
+    'certificate', 'certificates', 'diploma', 'degree', 'award', 'achievement',
+    'completion certificate', 'completion_certificate',
+    'participation certificate', 'participation_certificate',
+    'course completion', 'course_completion',
+    
+    // Administrative
+    'admission', 'enrollment', 'enrolment', 'registration', 'application form', 'application_form',
+    'permission letter', 'permission_letter', 'noc', 'bonafide', 'bona fide',
+    
+    // Other
+    'user manual', 'user_manual', 'instruction', 'guide', 'handbook',
+    'terms and conditions', 'terms_and_conditions', 'privacy policy', 'privacy_policy',
+    'legal document', 'legal_document'
+  ]
+
+  const textToCheck = `${fileName.toLowerCase()} ${(description || '').toLowerCase()}`
+  
+  for (const keyword of invalidKeywords) {
+    if (textToCheck.includes(keyword)) {
+      return {
+        isValid: false,
+        reason: `Document appears to be a ${keyword.toUpperCase().replace(/_/g, ' ')} rather than a pitch presentation`
+      }
+    }
+  }
+
+  return { isValid: true }
+}
+
+// Content-based validation - checks actual PDF text content
+export async function validatePDFContent(file: File): Promise<{ isValid: boolean; reason?: string; extractedText?: string }> {
+  try {
+    // Convert File to Buffer
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+    
+    // Dynamic import with error handling for pdf-parse test file issue
+    let pdfParse
+    try {
+      pdfParse = (await import('pdf-parse')).default
+    } catch (importError) {
+      // If import fails, skip content validation (let AI handle it)
+      return { isValid: true }
+    }
+    
+    // Extract text from PDF
+    let pdfData
+    try {
+      pdfData = await pdfParse(buffer, {
+        // Disable test file loading
+        max: 0
+      })
+    } catch (parseError) {
+      // If parsing fails, skip content validation (might be image-based PDF)
+      return { isValid: true }
+    }
+    
+    const text = pdfData.text.toLowerCase()
+    
+    // If no text extracted, might be image-based PDF - let AI handle it
+    if (text.length < 50) {
+      return { isValid: true }
+    }
+    
+    // Check for invalid content patterns
+    const invalidContentPatterns = [
+      // Academic indicators
+      { pattern: /marks?\s*obtained/i, type: 'MARKSHEET' },
+      { pattern: /total\s*marks/i, type: 'MARKSHEET' },
+      { pattern: /grade\s*point\s*average/i, type: 'TRANSCRIPT' },
+      { pattern: /cgpa|gpa\s*:/i, type: 'TRANSCRIPT' },
+      { pattern: /semester\s*\d+/i, type: 'ACADEMIC RECORD' },
+      { pattern: /subject\s*code/i, type: 'MARKSHEET' },
+      { pattern: /internal\s*marks/i, type: 'MARKSHEET' },
+      { pattern: /external\s*marks/i, type: 'MARKSHEET' },
+      { pattern: /theory\s*marks/i, type: 'MARKSHEET' },
+      { pattern: /practical\s*marks/i, type: 'MARKSHEET' },
+      { pattern: /hall\s*ticket/i, type: 'ADMIT CARD' },
+      { pattern: /examination\s*roll/i, type: 'EXAM DOCUMENT' },
+      { pattern: /register\s*number/i, type: 'ACADEMIC RECORD' },
+      
+      // Financial indicators
+      { pattern: /fee\s*paid/i, type: 'FEE RECEIPT' },
+      { pattern: /receipt\s*no/i, type: 'RECEIPT' },
+      { pattern: /transaction\s*id/i, type: 'PAYMENT RECEIPT' },
+      { pattern: /amount\s*paid/i, type: 'RECEIPT' },
+      { pattern: /payment\s*mode/i, type: 'PAYMENT RECEIPT' },
+      { pattern: /invoice\s*number/i, type: 'INVOICE' },
+      { pattern: /bank\s*reference/i, type: 'BANK STATEMENT' },
+      
+      // Personal document indicators
+      { pattern: /date\s*of\s*birth/i, type: 'PERSONAL DOCUMENT' },
+      { pattern: /father'?s?\s*name/i, type: 'PERSONAL DOCUMENT' },
+      { pattern: /mother'?s?\s*name/i, type: 'PERSONAL DOCUMENT' },
+      { pattern: /permanent\s*address/i, type: 'PERSONAL DOCUMENT' },
+      { pattern: /aadh?aa?r\s*number/i, type: 'ID CARD' },
+      { pattern: /passport\s*number/i, type: 'PASSPORT' },
+      
+      // Certificate indicators
+      { pattern: /this\s*is\s*to\s*certify/i, type: 'CERTIFICATE' },
+      { pattern: /awarded\s*to/i, type: 'CERTIFICATE' },
+      { pattern: /has\s*successfully\s*completed/i, type: 'CERTIFICATE' },
+      { pattern: /in\s*recognition\s*of/i, type: 'CERTIFICATE' }
+    ]
+    
+    // Check each pattern
+    for (const { pattern, type } of invalidContentPatterns) {
+      if (pattern.test(text)) {
+        return {
+          isValid: false,
+          reason: `Document content indicates this is a ${type}, not a pitch presentation`,
+          extractedText: text.substring(0, 500)
+        }
+      }
+    }
+    
+    // Check for pitch deck indicators (must have at least 2)
+    const pitchIndicators = [
+      /problem\s*(statement)?/i,
+      /solution/i,
+      /market\s*(size|opportunity)?/i,
+      /business\s*model/i,
+      /revenue/i,
+      /competition|competitors?/i,
+      /team/i,
+      /roadmap/i,
+      /traction/i,
+      /funding/i,
+      /investment/i,
+      /startup/i,
+      /product/i,
+      /customer/i
+    ]
+    
+    let pitchIndicatorCount = 0
+    for (const indicator of pitchIndicators) {
+      if (indicator.test(text)) {
+        pitchIndicatorCount++
+      }
+    }
+    
+    if (pitchIndicatorCount < 2) {
+      return {
+        isValid: false,
+        reason: 'Document does not appear to be a pitch presentation (missing key pitch elements like problem, solution, market, business model)',
+        extractedText: text.substring(0, 500)
+      }
+    }
+    
+    return { isValid: true, extractedText: text }
+    
+  } catch (error) {
+    // If we can't extract text, let it pass to AI (might be image-based PDF)
+    return { isValid: true }
+  }
+}
+
 // Helper function to get file-based analysis prompt
 function getAnalysisPrompt(fileName: string, domain: string, description?: string, tracks?: string[]): string {
   return `
-    EVALUATION APPROACH: 
-    
-    ACCEPT AND EVALUATE ALL PROJECT-RELATED CONTENT INCLUDING:
-    - Hackathon presentations (Google, Microsoft, any company hackathons)
-    - Academic project presentations 
-    - Research project presentations
-    - Startup pitch decks
-    - Product development presentations
-    - Technical solution presentations
-    - Innovation showcases
-    - Competition submissions
-    - ANY presentation about building, creating, or solving something
-    
-    ONLY reject these obvious personal documents:
-    - Fee receipts or invoices
-    - Personal resumes or CVs
-    - ID cards or certificates
-    - Academic transcripts with grades
-    
-    If there's ANY doubt, EVALUATE IT as a project presentation.
-    
-    Only return rejection if it's clearly a personal document:
-    {"scores":{"feasibility":0,"innovation":0,"impact":0,"clarity":0,"overall":0},"suggestions":["This appears to be a personal document (receipt/resume/ID) rather than a project presentation. Please upload content about a project, solution, or idea."]}
+    You are a pitch deck evaluation expert. Analyze this presentation and provide detailed feedback.
 
-    You are a STRICT, UNBIASED pitch evaluation expert with 20+ years of experience in venture capital, startup acceleration, and hackathon judging. You have NO emotional attachment and provide brutally honest, data-driven feedback.
+    ═══════════════════════════════════════════════════════════════════
+    DOCUMENT VALIDATION - Check First
+    ═══════════════════════════════════════════════════════════════════
 
-    EVALUATION APPROACH:
+    REJECT ONLY if the document is clearly one of these types:
     
-    Evaluate EVERYTHING as a potential project presentation. Look for:
-    - Any problem being solved
-    - Any solution being proposed  
-    - Any technology being developed
-    - Any idea being presented
-    - Any research with practical applications
+    ❌ Academic Records: Marksheets, transcripts, grade reports with "marks obtained", "CGPA", "semester grades"
+    ❌ Financial Documents: Fee receipts, invoices, payment confirmations with "amount paid", "transaction ID"
+    ❌ Personal IDs: Passports, ID cards, Aadhar cards with "date of birth", "father's name"
+    ❌ Certificates: Achievement certificates with "this is to certify", "awarded to"
+    ❌ Administrative: Admission letters, registration forms, NOCs
     
-    Be VERY generous - if there's any project element, evaluate it!
+    ACCEPT if the document discusses:
+    ✅ A project, product, or business idea
+    ✅ Technology, innovation, or solution
+    ✅ Problem-solving or market opportunity
+    ✅ Startup, company, or entrepreneurial venture
+    ✅ Any form of pitch, proposal, or business plan
 
-    DOMAIN DETECTION:
-    
-    IMPORTANT: Automatically detect and identify the project's main domain/theme from these categories:
-    - Web Development, Mobile App Development, AI/Machine Learning, Data Science & Analytics
-    - Blockchain & Web3, Cybersecurity, Internet of Things (IoT), AR/VR & Metaverse
-    - FinTech, HealthTech & MedTech, EdTech, CleanTech & Sustainability
-    - AgriTech, Gaming & Entertainment, Social Impact, E-commerce & Retail
-    - Logistics & Supply Chain, Robotics & Automation, Developer Tools, Other
-    
-    Include the detected domain in your response and explain why it fits that category.
-    
-    If this is clearly NOT a project presentation, return this JSON and STOP:
-    {
-      "scores": { "feasibility": 0, "innovation": 0, "impact": 0, "clarity": 0, "overall": 0 },
-      "suggestions": ["INVALID FILE TYPE: This appears to be [type of document] rather than a project pitch presentation. Please upload a presentation that introduces a project, startup idea, or product proposal with: problem statement, solution overview, market analysis, business model, and implementation plan."]
-    }
+    If document contains project/business content → EVALUATE IT
+    If document is clearly academic/financial/personal → REJECT IT
 
-    TASK: Analyze this ${fileName} presentation file and provide a comprehensive evaluation ONLY if it passes the file type validation above.
+    ═══════════════════════════════════════════════════════════════════
+    REJECTION FORMAT (Only for clearly invalid documents):
+    ═══════════════════════════════════════════════════════════════════
 
-    CONTEXT:
-    - Domain: ${domain}
-    - Additional Info: ${description || 'None provided'}
-    ${tracks && tracks.length > 0 ? `- Hackathon Tracks: ${tracks.join(', ')}` : ''}
-
-    ${tracks && tracks.length > 0 ? `
-    MANDATORY TRACK RELEVANCE CHECK (EVALUATE THIS FIRST):
-    
-    ALLOWED HACKATHON TRACKS: ${tracks.join(', ')}
-    
-    DISQUALIFICATION RULES (BE RUTHLESS):
-    1. If the presentation's MAIN TOPIC is not directly related to ANY track - DISQUALIFY (isRelevant: false)
-    2. If it's a generic business idea without track-specific technology - DISQUALIFY
-    3. If it's about a completely different domain - DISQUALIFY
-    4. If you can't clearly identify which track it belongs to - DISQUALIFY
-    5. DEFAULT TO DISQUALIFICATION - only allow if 100% certain it fits a track
-    
-    TRACK MATCHING EXAMPLES:
-    - "AI/ML" track: Must use artificial intelligence, machine learning, neural networks, etc.
-    - "Blockchain" track: Must use blockchain technology, crypto, smart contracts, etc.
-    - "Healthcare" track: Must solve healthcare problems, medical technology, etc.
-    - "Fintech" track: Must be financial technology, payments, banking, etc.
-    
-    AUTOMATIC DISQUALIFICATION EXAMPLES:
-    - LTI document when tracks are "AI/ML, Blockchain" - DISQUALIFY
-    - Food delivery app when tracks are "Healthcare, Education" - DISQUALIFY  
-    - Generic business plan when tracks are "IoT, Cybersecurity" - DISQUALIFY
-    - Random PDF document unrelated to any track - DISQUALIFY
-    - Academic papers/research without implementation - DISQUALIFY
-    - Company documentation/manuals - DISQUALIFY
-    - Generic presentations without track-specific technology - DISQUALIFY
-    
-    STRICT VALIDATION KEYWORDS (Auto-disqualify if found without track relevance):
-    - "LTI", "Learning Tools Interoperability" (unless Education track exists)
-    - "Annual Report", "Financial Statement" (unless Fintech track exists)
-    - "User Manual", "Documentation", "Guide" (unless specific tech track matches)
-    - "Research Paper", "Academic Study" (unless implementation is shown)
-    ` : ''}
-
-    EVALUATION CRITERIA (Score 1-10, be STRICT - average presentations should score 5-6):
-
-    1. FEASIBILITY: Technical viability, resource requirements, timeline realism, regulatory considerations
-    2. INNOVATION: Novelty, differentiation from existing solutions, technological advancement
-    3. IMPACT: Market size, user adoption potential, social/economic value creation
-    4. CLARITY: Presentation structure, visual design, storytelling, data presentation
-
-    SCORING GUIDELINES:
-    - 1-3: Poor/Inadequate (major flaws, unrealistic, unclear)
-    - 4-6: Average/Acceptable (standard approach, some issues)
-    - 7-8: Good/Strong (well-executed, minor improvements needed)
-    - 9-10: Excellent/Outstanding (exceptional quality, minimal flaws)
-
-    Provide response in JSON format:
     {
       "scores": {
-        "feasibility": <score 1-10>,
-        "innovation": <score 1-10>, 
-        "impact": <score 1-10>,
-        "clarity": <score 1-10>,
-        "overall": <calculated average>
+        "feasibility": 0,
+        "innovation": 0,
+        "impact": 0,
+        "clarity": 0,
+        "overall": 0
       },
       "suggestions": [
-        "WHAT TO ADD: [Specific missing element] - [Detailed explanation of why it's needed and how to implement it]",
-        "WHAT TO REMOVE: [Specific problematic element] - [Explanation of why it's harmful and what to replace it with]",
-        "WHAT TO IMPROVE: [Specific weak area] - [Detailed steps for improvement with examples]",
-        "WHAT TO ADD: [Another missing element] - [Implementation guidance]",
-        "WHAT TO REMOVE: [Another problematic element] - [Replacement strategy]",
-        "WHAT TO IMPROVE: [Another weak area] - [Specific improvement steps]",
-        "WHAT TO ADD: [Final missing element] - [Complete implementation guide]"
+        "❌ INVALID FILE TYPE: This appears to be a [DOCUMENT TYPE] rather than a project pitch presentation. Please upload a presentation that introduces a project, startup idea, or product proposal with: problem statement, solution overview, market analysis, business model, and implementation plan."
+      ]
+    }
+
+    ═══════════════════════════════════════════════════════════════════
+    EVALUATION (For valid pitch presentations):
+    ═══════════════════════════════════════════════════════════════════
+
+    File: ${fileName}
+    Domain: ${domain}
+    Description: ${description || 'Not provided'}
+    ${tracks && tracks.length > 0 ? `Tracks: ${tracks.join(', ')}` : ''}
+
+    ${tracks && tracks.length > 0 ? `
+    TRACK VALIDATION:
+    Allowed Tracks: ${tracks.join(', ')}
+    
+    Rules:
+    • Project should align with at least ONE track
+    • If unclear or generic → Mark as not relevant
+    • If clearly matches a track → Mark as relevant
+    ` : ''}
+
+    SCORING CRITERIA (1-10 scale):
+
+    1. Feasibility: Technical viability, resources, timeline, execution risk
+    2. Innovation: Novelty, differentiation, technological advancement
+    3. Impact: Market potential, scalability, value creation
+    4. Clarity: Presentation quality, structure, storytelling
+
+    Scoring Guide:
+    • 1-3: Poor/Severely lacking
+    • 4-5: Below average/Needs major work
+    • 6-7: Average/Good with improvements needed
+    • 8-9: Very good/Strong
+    • 10: Exceptional/Outstanding
+
+    RESPONSE FORMAT:
+    {
+      "scores": {
+        "feasibility": <1-10>,
+        "innovation": <1-10>,
+        "impact": <1-10>,
+        "clarity": <1-10>,
+        "overall": <average>
+      },
+      "suggestions": [
+        "WHAT TO ADD: [Specific element] - [Implementation guidance]",
+        "WHAT TO REMOVE: [Problem] - [Replacement strategy]",
+        "WHAT TO IMPROVE: [Weak area] - [Detailed improvement steps]",
+        "WHAT TO ADD: [Another element] - [Guidance]",
+        "WHAT TO REMOVE: [Another problem] - [Strategy]",
+        "WHAT TO IMPROVE: [Another area] - [Steps]",
+        "WHAT TO ADD: [Final element] - [Complete guide]"
       ]${tracks && tracks.length > 0 ? `,
       "trackRelevance": {
-        "isRelevant": <true/false - BE STRICT, DEFAULT TO FALSE>,
-        "matchedTracks": [<array of matched track names, empty if not relevant>],
-        "relevanceScore": <1-10, how well it matches the tracks>,
-        "reason": "<detailed explanation of why it's relevant or not relevant>"
+        "isRelevant": <true/false>,
+        "matchedTracks": [<tracks or []>],
+        "relevanceScore": <1-10>,
+        "reason": "<explanation>"
       }` : ''}
     }
 
-    REQUIREMENTS for suggestions:
-    - Start each with "WHAT TO ADD:", "WHAT TO REMOVE:", or "WHAT TO IMPROVE:"
-    - Be specific about slide numbers, sections, or elements when possible
-    - Provide actionable steps, not vague advice
-    - Include examples, metrics, or frameworks
-    - Be brutally honest about weaknesses
-    - Suggest concrete alternatives for removed elements
+    IMPORTANT: If this is a genuine pitch/project presentation, EVALUATE IT. Only reject if it's clearly an academic record, receipt, or personal document.
   `
 }
 
 // Helper function to get text-based analysis prompt
 function getTextAnalysisPrompt(text: string, fileName: string, domain: string, description?: string, tracks?: string[]): string {
   return `
-    EVALUATION APPROACH: 
-    
-    ACCEPT AND EVALUATE ALL PROJECT-RELATED CONTENT INCLUDING:
-    - Hackathon presentations (Google, Microsoft, any company hackathons)
-    - Academic project presentations 
-    - Research project presentations
-    - Startup pitch decks
-    - Product development presentations
-    - Technical solution presentations
-    - Innovation showcases
-    - Competition submissions
-    - ANY presentation about building, creating, or solving something
-    
-    ONLY reject these obvious personal documents:
-    - Fee receipts or invoices
-    - Personal resumes or CVs
-    - ID cards or certificates
-    - Academic transcripts with grades
-    
-    If there's ANY doubt, EVALUATE IT as a project presentation.
-    
-    NEVER reject any presentation - always evaluate it as a project.
+    You are a pitch deck evaluation expert. Analyze this presentation and provide detailed feedback.
 
-    You are a STRICT, UNBIASED pitch evaluation expert with 20+ years of experience in venture capital, startup acceleration, and hackathon judging. You have NO emotional attachment and provide brutally honest, data-driven feedback.
+    ═══════════════════════════════════════════════════════════════════
+    DOCUMENT VALIDATION - Check First
+    ═══════════════════════════════════════════════════════════════════
 
-    IMPORTANT: Only reject if it's clearly a personal document (receipt, resume, ID card). 
-    For everything else, evaluate it as a project presentation.
-
-    EVALUATION APPROACH:
+    REJECT ONLY if the document is clearly one of these types:
     
-    Evaluate EVERYTHING as a potential project presentation. Look for:
-    - Any problem being solved
-    - Any solution being proposed  
-    - Any technology being developed
-    - Any idea being presented
-    - Any research with practical applications
+    ❌ Academic Records: Marksheets, transcripts, grade reports with "marks obtained", "CGPA", "semester grades"
+    ❌ Financial Documents: Fee receipts, invoices, payment confirmations with "amount paid", "transaction ID"
+    ❌ Personal IDs: Passports, ID cards, Aadhar cards with "date of birth", "father's name"
+    ❌ Certificates: Achievement certificates with "this is to certify", "awarded to"
+    ❌ Administrative: Admission letters, registration forms, NOCs
     
-    Be VERY generous - if there's any project element, evaluate it!
-    
-    Only reject if it's clearly a personal document (receipt, resume, ID card).
-    For everything else, evaluate it as a project presentation.
+    ACCEPT if the document discusses:
+    ✅ A project, product, or business idea
+    ✅ Technology, innovation, or solution
+    ✅ Problem-solving or market opportunity
+    ✅ Startup, company, or entrepreneurial venture
+    ✅ Any form of pitch, proposal, or business plan
 
-    DOMAIN DETECTION:
-    
-    IMPORTANT: Automatically detect and identify the project's main domain/theme from these categories:
-    - Web Development, Mobile App Development, AI/Machine Learning, Data Science & Analytics
-    - Blockchain & Web3, Cybersecurity, Internet of Things (IoT), AR/VR & Metaverse
-    - FinTech, HealthTech & MedTech, EdTech, CleanTech & Sustainability
-    - AgriTech, Gaming & Entertainment, Social Impact, E-commerce & Retail
-    - Logistics & Supply Chain, Robotics & Automation, Developer Tools, Other
-    
-    Include the detected domain in your response and explain why it fits that category.
+    If document contains project/business content → EVALUATE IT
+    If document is clearly academic/financial/personal → REJECT IT
 
-    TASK: Analyze this presentation content from ${fileName} and provide a comprehensive evaluation with automatic domain detection.
+    ═══════════════════════════════════════════════════════════════════
+    REJECTION FORMAT (Only for clearly invalid documents):
+    ═══════════════════════════════════════════════════════════════════
 
-    PRESENTATION CONTENT:
-    ${text}
-
-    CONTEXT:
-    - Domain: ${domain}
-    - Additional Info: ${description || 'None provided'}
-    ${tracks && tracks.length > 0 ? `- Hackathon Tracks: ${tracks.join(', ')}` : ''}
-
-    ${tracks && tracks.length > 0 ? `
-    MANDATORY TRACK RELEVANCE CHECK (EVALUATE THIS FIRST):
-    
-    ALLOWED HACKATHON TRACKS: ${tracks.join(', ')}
-    
-    DISQUALIFICATION RULES (BE RUTHLESS):
-    1. If the presentation's MAIN TOPIC is not directly related to ANY track - DISQUALIFY (isRelevant: false)
-    2. If it's a generic business idea without track-specific technology - DISQUALIFY
-    3. If it's about a completely different domain - DISQUALIFY
-    4. If you can't clearly identify which track it belongs to - DISQUALIFY
-    5. DEFAULT TO DISQUALIFICATION - only allow if 100% certain it fits a track
-    
-    TRACK MATCHING EXAMPLES:
-    - "AI/ML" track: Must use artificial intelligence, machine learning, neural networks, etc.
-    - "Blockchain" track: Must use blockchain technology, crypto, smart contracts, etc.
-    - "Healthcare" track: Must solve healthcare problems, medical technology, etc.
-    - "Fintech" track: Must be financial technology, payments, banking, etc.
-    
-    AUTOMATIC DISQUALIFICATION EXAMPLES:
-    - LTI document when tracks are "AI/ML, Blockchain" - DISQUALIFY
-    - Food delivery app when tracks are "Healthcare, Education" - DISQUALIFY  
-    - Generic business plan when tracks are "IoT, Cybersecurity" - DISQUALIFY
-    - Random PDF document unrelated to any track - DISQUALIFY
-    - Academic papers/research without implementation - DISQUALIFY
-    - Company documentation/manuals - DISQUALIFY
-    - Generic presentations without track-specific technology - DISQUALIFY
-    
-    STRICT VALIDATION KEYWORDS (Auto-disqualify if found without track relevance):
-    - "LTI", "Learning Tools Interoperability" (unless Education track exists)
-    - "Annual Report", "Financial Statement" (unless Fintech track exists)
-    - "User Manual", "Documentation", "Guide" (unless specific tech track matches)
-    - "Research Paper", "Academic Study" (unless implementation is shown)
-    ` : ''}
-
-    EVALUATION CRITERIA (Score 1-10, be STRICT - average presentations should score 5-6):
-
-    1. FEASIBILITY: Technical viability, resource requirements, timeline realism, regulatory considerations
-    2. INNOVATION: Novelty, differentiation from existing solutions, technological advancement
-    3. IMPACT: Market size, user adoption potential, social/economic value creation
-    4. CLARITY: Presentation structure, visual design, storytelling, data presentation
-
-    SCORING GUIDELINES:
-    - 1-3: Poor/Inadequate (major flaws, unrealistic, unclear)
-    - 4-6: Average/Acceptable (standard approach, some issues)
-    - 7-8: Good/Strong (well-executed, minor improvements needed)
-    - 9-10: Excellent/Outstanding (exceptional quality, minimal flaws)
-
-    Provide response in JSON format:
     {
       "scores": {
-        "feasibility": <score 1-10>,
-        "innovation": <score 1-10>, 
-        "impact": <score 1-10>,
-        "clarity": <score 1-10>,
-        "overall": <calculated average>
+        "feasibility": 0,
+        "innovation": 0,
+        "impact": 0,
+        "clarity": 0,
+        "overall": 0
       },
       "suggestions": [
-        "WHAT TO ADD: [Specific missing element] - [Detailed explanation of why it's needed and how to implement it]",
-        "WHAT TO REMOVE: [Specific problematic element] - [Explanation of why it's harmful and what to replace it with]",
-        "WHAT TO IMPROVE: [Specific weak area] - [Detailed steps for improvement with examples]",
-        "WHAT TO ADD: [Another missing element] - [Implementation guidance]",
-        "WHAT TO REMOVE: [Another problematic element] - [Replacement strategy]",
-        "WHAT TO IMPROVE: [Another weak area] - [Specific improvement steps]",
-        "WHAT TO ADD: [Final missing element] - [Complete implementation guide]"
+        "❌ INVALID FILE TYPE: This appears to be a [DOCUMENT TYPE] rather than a project pitch presentation. Please upload a presentation that introduces a project, startup idea, or product proposal with: problem statement, solution overview, market analysis, business model, and implementation plan."
+      ]
+    }
+
+    ═══════════════════════════════════════════════════════════════════
+    DOCUMENT CONTENT:
+    ═══════════════════════════════════════════════════════════════════
+
+    ${text}
+
+    ═══════════════════════════════════════════════════════════════════
+    DOCUMENT INFO:
+    ═══════════════════════════════════════════════════════════════════
+
+    File: ${fileName}
+    Domain: ${domain}
+    Description: ${description || 'Not provided'}
+    ${tracks && tracks.length > 0 ? `Tracks: ${tracks.join(', ')}` : ''}
+
+    ${tracks && tracks.length > 0 ? `
+    TRACK VALIDATION:
+    Allowed Tracks: ${tracks.join(', ')}
+    
+    Rules:
+    • Project should align with at least ONE track
+    • If unclear or generic → Mark as not relevant
+    • If clearly matches a track → Mark as relevant
+    ` : ''}
+
+    SCORING CRITERIA (1-10 scale):
+
+    1. Feasibility: Technical viability, resources, timeline, execution risk
+    2. Innovation: Novelty, differentiation, technological advancement
+    3. Impact: Market potential, scalability, value creation
+    4. Clarity: Presentation quality, structure, storytelling
+
+    Scoring Guide:
+    • 1-3: Poor/Severely lacking
+    • 4-5: Below average/Needs major work
+    • 6-7: Average/Good with improvements needed
+    • 8-9: Very good/Strong
+    • 10: Exceptional/Outstanding
+
+    RESPONSE FORMAT:
+    {
+      "scores": {
+        "feasibility": <1-10>,
+        "innovation": <1-10>,
+        "impact": <1-10>,
+        "clarity": <1-10>,
+        "overall": <average>
+      },
+      "suggestions": [
+        "WHAT TO ADD: [Specific element] - [Implementation guidance]",
+        "WHAT TO REMOVE: [Problem] - [Replacement strategy]",
+        "WHAT TO IMPROVE: [Weak area] - [Detailed improvement steps]",
+        "WHAT TO ADD: [Another element] - [Guidance]",
+        "WHAT TO REMOVE: [Another problem] - [Strategy]",
+        "WHAT TO IMPROVE: [Another area] - [Steps]",
+        "WHAT TO ADD: [Final element] - [Complete guide]"
       ]${tracks && tracks.length > 0 ? `,
       "trackRelevance": {
-        "isRelevant": <true/false - BE STRICT, DEFAULT TO FALSE>,
-        "matchedTracks": [<array of matched track names, empty if not relevant>],
-        "relevanceScore": <1-10, how well it matches the tracks>,
-        "reason": "<detailed explanation of why it's relevant or not relevant>"
+        "isRelevant": <true/false>,
+        "matchedTracks": [<tracks or []>],
+        "relevanceScore": <1-10>,
+        "reason": "<explanation>"
       }` : ''}
     }
 
-    REQUIREMENTS for suggestions:
-    - Start each with "WHAT TO ADD:", "WHAT TO REMOVE:", or "WHAT TO IMPROVE:"
-    - Be specific about slide numbers, sections, or elements when possible
-    - Provide actionable steps, not vague advice
-    - Include examples, metrics, or frameworks
-    - Be brutally honest about weaknesses
-    - Suggest concrete alternatives for removed elements
+    IMPORTANT: If this is a genuine pitch/project presentation, EVALUATE IT. Only reject if it's clearly an academic record, receipt, or personal document.
   `
 }
 

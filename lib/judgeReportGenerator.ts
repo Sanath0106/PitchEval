@@ -37,7 +37,7 @@ interface ProjectAnalysis {
 
 // Generate detailed project analysis using AI
 async function generateProjectAnalysis(evaluation: JudgeEvaluationData): Promise<ProjectAnalysis> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' })
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
   
   const projectName = evaluation.fileName.replace(/\.[^/.]+$/, '')
   const displayDomain = evaluation.detectedDomain?.category && evaluation.detectedDomain.category !== 'auto-detect' 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { processQueue, QUEUES, getQueueStats } from '../../../../lib/queue'
+import { getChannel, QUEUES, getQueueStats, EvaluationJob } from '../../../../lib/queue'
 import { processEvaluationJob } from '../../../../lib/processors/evaluationProcessor'
 
 export async function POST(request: NextRequest) {
@@ -43,6 +43,9 @@ export async function POST(request: NextRequest) {
     const maxProcessingTime = process.env.VERCEL ? 50000 : 300000 // 50s for Vercel, 5min for others
     const errors: string[] = []
     
+    // Get channel for manual message consumption
+    const channel = await getChannel()
+    
     // Process jobs one by one until we hit limits
     while (processedCount < maxJobs && (Date.now() - startTime) < maxProcessingTime) {
       try {
@@ -53,37 +56,74 @@ export async function POST(request: NextRequest) {
           break
         }
         
-        // Process one job with timeout protection
-        let jobProcessed = false
+        // Manually get one message from the queue
+        const msg = await channel.get(queueName, { noAck: false })
+        
+        if (!msg) {
+          // No more messages available
+          break
+        }
+        
         const jobStartTime = Date.now()
         
-        await Promise.race([
-          processQueue(queueName, async (job) => {
-            // Processing evaluation job
-            await processEvaluationJob(job)
-            processedCount++
-            jobProcessed = true
-            console.log(`Completed job: ${job.evaluationId} in ${Date.now() - jobStartTime}ms`)
-          }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Job timeout')), 45000) // 45s timeout per job
-          )
-        ])
-        
-        if (!jobProcessed) {
-          // No jobs available
-          break
+        try {
+          // Parse and process the job
+          const job: EvaluationJob = JSON.parse(msg.content.toString())
+          
+          // Process with timeout protection
+          await Promise.race([
+            processEvaluationJob(job),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Job timeout')), 45000) // 45s timeout per job
+            )
+          ])
+          
+          // Acknowledge successful processing
+          channel.ack(msg)
+          processedCount++
+          console.log(`✅ Completed job: ${job.evaluationId} in ${Date.now() - jobStartTime}ms`)
+          
+        } catch (jobError) {
+          const errorMsg = jobError instanceof Error ? jobError.message : 'Unknown error'
+          console.error(`❌ Job processing failed:`, errorMsg)
+          
+          // Handle retry logic
+          const retryCount = (msg.properties.headers?.['x-retry-count'] || 0) + 1
+          
+          if (retryCount <= 3) {
+            // Requeue with retry count
+            channel.sendToQueue(queueName, msg.content, {
+              persistent: true,
+              headers: { 'x-retry-count': retryCount },
+              priority: msg.properties.priority || 5
+            })
+            channel.ack(msg)
+            console.log(`🔄 Requeued job (retry ${retryCount}/3)`)
+          } else {
+            // Max retries reached
+            console.error(`❌ Max retries reached for job, removing from queue`)
+            channel.ack(msg)
+          }
+          
+          errors.push(errorMsg)
+          failedCount++
+          
+          // Stop if too many failures
+          if (failedCount >= 3) {
+            console.log(`⚠️ Too many failures (${failedCount}), stopping batch`)
+            break
+          }
         }
         
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-        console.error(`❌ Error processing job:`, errorMsg)
+        console.error(`❌ Error in processing loop:`, errorMsg)
         errors.push(errorMsg)
         failedCount++
         
         // Stop if too many failures
         if (failedCount >= 3) {
-          console.log(`Too many failures (${failedCount}), stopping batch`)
+          console.log(`⚠️ Too many failures (${failedCount}), stopping batch`)
           break
         }
       }

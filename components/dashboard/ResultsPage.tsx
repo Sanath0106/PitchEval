@@ -474,7 +474,7 @@ export default function ResultsPage({ evaluation }: ResultsPageProps) {
                                 <div className={`inline-block px-3 py-1 ${config.labelBg} rounded-full text-xs font-semibold text-white`}>
                                   {config.label}
                                 </div>
-                                <p className={`${config.textColor} leading-relaxed text-base font-medium`}>
+                                <p className={`${config.textColor} leading-relaxed text-base font-medium whitespace-pre-line`}>
                                   {suggestion}
                                 </p>
                               </div>
@@ -490,12 +490,20 @@ export default function ResultsPage({ evaluation }: ResultsPageProps) {
               )}
 
               <div className="flex flex-col sm:flex-row justify-center gap-4 w-full max-w-md mx-auto">
-                <Link href={evaluation.hackathonId ? `/dashboard/hackathon/results/${evaluation.hackathonId}` : '/dashboard'} className="w-full sm:w-auto">
-                  <Button variant="outline" size="lg" className="w-full border-white text-white hover:bg-white hover:text-black bg-gray-800/50">
-                    <Home className="w-4 h-4 mr-2" />
-                    <span className="truncate">{evaluation.hackathonId ? 'Back to Hackathon Results' : 'Go to Dashboard'}</span>
-                  </Button>
-                </Link>
+                <Button 
+                  variant="outline" 
+                  size="lg" 
+                  className="w-full sm:w-auto border-white text-white hover:bg-white hover:text-black bg-gray-800/50"
+                  onClick={() => {
+                    const redirectUrl = evaluation.hackathonId 
+                      ? `/dashboard/hackathon/results/${evaluation.hackathonId}` 
+                      : '/dashboard'
+                    window.location.href = redirectUrl
+                  }}
+                >
+                  <Home className="w-4 h-4 mr-2" />
+                  <span className="truncate">{evaluation.hackathonId ? 'Back to Hackathon Results' : 'Go to Dashboard'}</span>
+                </Button>
                 
                 {/* Only show download button for valid evaluations (not discarded) */}
                 {evaluation.scores.overall > 0 && (

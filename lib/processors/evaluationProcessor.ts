@@ -6,8 +6,11 @@ import { generateFileHash, getCachedEvaluation, setCachedEvaluation } from '../c
 import { EvaluationJob, PersonalEvaluationJob, HackathonEvaluationJob } from '../queue'
 import { logger } from '../logger'
 
-// Process personal evaluation job
+// Process personal evaluation job with timeout handling
 export async function processPersonalEvaluation(job: PersonalEvaluationJob): Promise<void> {
+  const startTime = Date.now()
+  const TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes timeout
+
   try {
     await dbConnect()
 
@@ -23,15 +26,15 @@ export async function processPersonalEvaluation(job: PersonalEvaluationJob): Pro
     // Create File object for AI processing
     const file = new File([fileBuffer], job.fileName, { type: 'application/pdf' })
 
-    // No filename-based rejection - let AI handle everything
-
     // Generate file hash for caching
     const fileHash = generateFileHash(fileBuffer, job.fileName)
 
     logger.debug('Processing personal evaluation', { fileName: job.fileName })
 
-    // Check Redis cache first
-    const cachedResult = await getCachedEvaluation(fileHash, job.domain)
+    // Check Redis cache with context
+    const cachedResult = await getCachedEvaluation(fileHash, job.domain, {
+      evaluationType: 'personal'
+    })
 
     let aiResult
     if (cachedResult) {
@@ -43,8 +46,19 @@ export async function processPersonalEvaluation(job: PersonalEvaluationJob): Pro
       }
     } else {
       logger.debug('Cache MISS for personal evaluation - Processing with AI')
-      // Process with AI
-      aiResult = await evaluatePresentationFile(file, job.domain, job.description)
+      
+      // Check timeout before AI processing
+      if (Date.now() - startTime > TIMEOUT_MS) {
+        throw new Error('Processing timeout exceeded before AI evaluation')
+      }
+
+      // Process with AI with timeout wrapper
+      aiResult = await Promise.race([
+        evaluatePresentationFile(file, job.domain, job.description),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('AI processing timeout')), TIMEOUT_MS - (Date.now() - startTime))
+        )
+      ]) as any
 
       // Cache the result
       await setCachedEvaluation(fileHash, job.domain, {
@@ -54,6 +68,8 @@ export async function processPersonalEvaluation(job: PersonalEvaluationJob): Pro
         detectedDomain: aiResult.detectedDomain,
         fileName: job.fileName,
         createdAt: new Date().toISOString()
+      }, {
+        evaluationType: 'personal'
       })
     }
 
@@ -61,20 +77,30 @@ export async function processPersonalEvaluation(job: PersonalEvaluationJob): Pro
     await Evaluation.findByIdAndUpdate(job.evaluationId, {
       scores: aiResult.scores,
       suggestions: aiResult.suggestions,
-      domain: aiResult.detectedDomain?.category || job.domain, // Use AI-detected domain if available
-      detectedDomain: aiResult.detectedDomain, // Store full detection info
+      domain: aiResult.detectedDomain?.category || job.domain,
+      detectedDomain: aiResult.detectedDomain,
       status: 'completed',
       updatedAt: new Date(),
     })
 
-    logger.info('Personal evaluation completed')
+    logger.info('Personal evaluation completed', { 
+      fileName: job.fileName, 
+      duration: Date.now() - startTime 
+    })
 
   } catch (error) {
     console.error('Personal evaluation processing failed:', error)
 
-    // Update evaluation with error status
+    // Determine if it's a timeout error
+    const isTimeout = error instanceof Error && 
+      (error.message.includes('timeout') || Date.now() - startTime > TIMEOUT_MS)
+
+    // Update evaluation with appropriate error status
     await Evaluation.findByIdAndUpdate(job.evaluationId, {
       status: 'failed',
+      suggestions: isTimeout 
+        ? ['Processing timed out. Please try uploading your file again. Large files may take longer to process.']
+        : ['Processing failed. Please try uploading your file again.'],
       updatedAt: new Date(),
     })
 
@@ -82,8 +108,11 @@ export async function processPersonalEvaluation(job: PersonalEvaluationJob): Pro
   }
 }
 
-// Process hackathon evaluation job
+// Process hackathon evaluation job with timeout handling
 export async function processHackathonEvaluation(job: HackathonEvaluationJob): Promise<void> {
+  const startTime = Date.now()
+  const TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes timeout
+
   try {
     await dbConnect()
 
@@ -110,6 +139,11 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
 
     logger.debug('Processing hackathon evaluation')
 
+    // Check timeout before processing
+    if (Date.now() - startTime > TIMEOUT_MS) {
+      throw new Error('Processing timeout exceeded before evaluation')
+    }
+
     // Log template validation status for debugging
     if (job.templateAnalysis) {
       logger.debug('Job includes template analysis data - validation enabled')
@@ -119,8 +153,15 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
       logger.debug('No template analysis available - standard evaluation only')
     }
 
-    // Check Redis cache first
-    const cachedResult = await getCachedEvaluation(fileHash, 'hackathon')
+    // Check Redis cache with full context (tracks, weights, template)
+    const cacheContext = {
+      evaluationType: 'hackathon' as const,
+      tracks: hackathon.tracks,
+      weights: hackathon.weights,
+      hasTemplate: !!(job.templateAnalysis || hackathon.templateAnalysis)
+    }
+    
+    const cachedResult = await getCachedEvaluation(fileHash, 'hackathon', cacheContext)
 
     let aiResult
     let templateValidation = null
@@ -141,8 +182,19 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
       }
     } else {
       logger.debug('Cache MISS for hackathon evaluation - Processing with AI')
-      // Process with AI including track information and template
-      aiResult = await evaluatePresentationFile(file, 'hackathon', undefined, hackathon.tracks)
+      
+      // Check timeout before AI processing
+      if (Date.now() - startTime > TIMEOUT_MS) {
+        throw new Error('Processing timeout exceeded before AI evaluation')
+      }
+
+      // Process with AI including track information and template with timeout wrapper
+      aiResult = await Promise.race([
+        evaluatePresentationFile(file, 'hackathon', undefined, hackathon.tracks),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('AI processing timeout')), TIMEOUT_MS - (Date.now() - startTime))
+        )
+      ]) as any
 
       // Perform template validation if template analysis exists and validation is requested
       if (job.templateAnalysis && (job.includeTemplateValidation !== false)) {
@@ -269,7 +321,7 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
         cacheData.templateValidation = templateValidation
       }
 
-      await setCachedEvaluation(fileHash, 'hackathon', cacheData)
+      await setCachedEvaluation(fileHash, 'hackathon', cacheData, cacheContext)
     }
 
     // Calculate weighted overall score
@@ -311,9 +363,16 @@ export async function processHackathonEvaluation(job: HackathonEvaluationJob): P
   } catch (error) {
     console.error('Hackathon evaluation processing failed:', error)
 
-    // Update evaluation with error status
+    // Determine if it's a timeout error
+    const isTimeout = error instanceof Error && 
+      (error.message.includes('timeout') || Date.now() - startTime > TIMEOUT_MS)
+
+    // Update evaluation with appropriate error status
     await Evaluation.findByIdAndUpdate(job.evaluationId, {
       status: 'failed',
+      suggestions: isTimeout 
+        ? ['Processing timed out. Please try uploading your file again. Large files may take longer to process.']
+        : ['Processing failed. Please try uploading your file again.'],
       updatedAt: new Date(),
     })
 
